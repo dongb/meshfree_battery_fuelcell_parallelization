@@ -2,8 +2,8 @@ import time
 start_time = time.time()
 import numpy as np
 from numpy import sign
-#import cupynumeric as cnp
-import numpy as cnp
+import cupynumeric as cnp
+#import numpy as cnp
 
 import matplotlib.pyplot as plt
 
