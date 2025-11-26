@@ -23,19 +23,49 @@ from collections import Counter
 
 
 def get_x_nodes_fuel_cell_3d_toy_image(x_min,x_max,y_min,y_max,z_min, z_max, num_pixels_xyz, img_):
-    # x_min... are the range of the whole domain.
-
-    num_pixels_x = num_pixels_xyz[0] # number of pixels/nodes along x
-    num_pixels_y = num_pixels_xyz[1]
-    num_pixels_z = num_pixels_xyz[2]
-
-    # nodes in domain
-    x_nodes_electrolyte = []
-    x_nodes_electrode = []
-    x_nodes_pore = []
-    x_nodes_mechanical = []
+    """
+    Vectorized version of get_x_nodes_fuel_cell_3d_toy_image.
     
-    # nodes in each cell, used to calculate the gauss points in each cell
+    Generates nodes, Gauss points, and interface information for 3D fuel cell simulation.
+    
+    Parameters:
+    -----------
+    x_min, x_max : float
+        X-axis domain bounds
+    y_min, y_max : float
+        Y-axis domain bounds
+    z_min, z_max : float
+        Z-axis domain bounds
+    num_pixels_xyz : list
+        Number of pixels along each axis [nx, ny, nz]
+    img_ : ndarray
+        3D image array with phase labels (0: pore, 1: electrode, 2: electrolyte)
+    
+    Returns:
+    --------
+    Tuple of node lists, cell nodes, and interface information
+    """
+    
+    num_pixels_x, num_pixels_y, num_pixels_z = num_pixels_xyz
+    
+    # Calculate pixel sizes
+    dx = (x_max - x_min) / num_pixels_x
+    dy = (y_max - y_min) / num_pixels_y
+    dz = (z_max - z_min) / num_pixels_z
+    
+    # Pre-generate coordinate arrays
+    x_coords = np.arange(num_pixels_x + 1) * dx + x_min
+    y_coords = np.arange(num_pixels_y + 1) * dy + y_min
+    z_coords = np.arange(num_pixels_z + 1) * dz + z_min
+    
+    # Create meshgrid for all possible node positions
+    # We'll use sets to track unique nodes for each phase
+    nodes_electrolyte_set = set()
+    nodes_electrode_set = set()
+    nodes_pore_set = set()
+    nodes_mechanical_set = set()
+    
+    # Cell nodes storage
     cell_nodes_electrolyte_x = []
     cell_nodes_electrolyte_y = []
     cell_nodes_electrolyte_z = []
@@ -45,823 +75,636 @@ def get_x_nodes_fuel_cell_3d_toy_image(x_min,x_max,y_min,y_max,z_min, z_max, num
     cell_nodes_pore_x = []
     cell_nodes_pore_y = []
     cell_nodes_pore_z = []
-
-    nodes_id_electrolyte = 0
-    nodes_id_electrode = 0
-    nodes_id_pore = 0
     
-    # nodes in each cell on boundaries with Diretchlet BC
-    cell_nodes_left_electrolyte_x = [] # with Diretchlet BC
-    cell_nodes_left_electrolyte_z = [] # with Diretchlet BC
+    # Boundary cell nodes
+    cell_nodes_left_electrolyte_x = []
+    cell_nodes_left_electrolyte_z = []
     cell_nodes_right_electrode_x = []
     cell_nodes_right_electrode_z = []
     cell_nodes_right_pore_x = []
     cell_nodes_right_pore_z = []
-
-    nodes_id_left_electrolyte = [] # with Diretchlet BC
-    nodes_id_right_electrode = []
-    nodes_id_right_pore = []
-
-    # segments on triple junctions or with flux, line integral of point source. 
-    segments_source = [] # n by 6 array, n is the number of segments with flux, 2 points on this segments, 6 coordinates for 3d
     
-    cell_nodes_fixed_x = [] # n by 4.
-    cell_nodes_fixed_z = [] 
-
-    # at the interface of electrolyte/electrode and pore/electrode
-    # cell_nodes_interface_electrode_electrolyte_electrolyte_x = []
-    # cell_nodes_interface_electrode_electrolyte_electrolyte_y = []
-    # cell_nodes_interface_electrode_electrolyte_electrolyte_z = []
-    # cell_nodes_interface_electrode_pore_electrode_x = []
-    # cell_nodes_interface_electrode_pore_electrode_y = []
-    # cell_nodes_interface_electrode_pore_electrode_z = []
-
-    # cell_nodes_interface_electrode_electrolyte_electrode_x = []
-    # cell_nodes_interface_electrode_electrolyte_electrode_y = []
-    # cell_nodes_interface_electrode_electrolyte_electrode_z = []
-    # cell_nodes_interface_electrode_pore_pore_x = []
-    # cell_nodes_interface_electrode_pore_pore_y = []
-    # cell_nodes_interface_electrode_pore_pore_z = []
-
+    cell_nodes_fixed_x = []
+    cell_nodes_fixed_z = []
+    
+    # Interface nodes
     cell_nodes_interface_electrode_electrolyte_x = []
     cell_nodes_interface_electrode_electrolyte_y = []
     cell_nodes_interface_electrode_electrolyte_z = []
     cell_nodes_interface_electrode_pore_x = []
     cell_nodes_interface_electrode_pore_y = []
     cell_nodes_interface_electrode_pore_z = []
-
-    for i in range(num_pixels_x):
-        for j in range(num_pixels_y):
-            for k in range(num_pixels_z):
-                if j == 0 and k == 0:
-                    cell_nodes_fixed_x.append([x_min+(x_max-x_min)/(num_pixels_x)*i, x_min+(x_max-x_min)/(num_pixels_x)*(i+1), x_min+(x_max-x_min)/(num_pixels_x)*(i+1), x_min+(x_max-x_min)/(num_pixels_x)*i])
-                    cell_nodes_fixed_z.append([z_min, z_min, z_min+(z_max-z_min)/(num_pixels_z), z_min+(z_max-z_min)/(num_pixels_z)])
-
-                if img_[i, j, k] != 0:
-                    if [x_min+(x_max-x_min)/(num_pixels_x)*i, y_min+(y_max-y_min)/(num_pixels_y)*j, z_min+(z_max-z_min)/(num_pixels_z)*k] not in x_nodes_mechanical:
-                        x_nodes_mechanical.append([x_min+(x_max-x_min)/(num_pixels_x)*i, y_min+(y_max-y_min)/(num_pixels_y)*j, z_min+(z_max-z_min)/(num_pixels_z)*k])
-                        
-                    if [x_min+(x_max-x_min)/(num_pixels_x)*(i+1), y_min+(y_max-y_min)/(num_pixels_y)*(j), z_min+(z_max-z_min)/(num_pixels_z)*k] not in x_nodes_mechanical:
-                        x_nodes_mechanical.append([x_min+(x_max-x_min)/(num_pixels_x)*(i+1), y_min+(y_max-y_min)/(num_pixels_y)*(j), z_min+(z_max-z_min)/(num_pixels_z)*k])
-
-                    if [x_min+(x_max-x_min)/(num_pixels_x)*(i+1), y_min+(y_max-y_min)/(num_pixels_y)*(j+1), z_min+(z_max-z_min)/(num_pixels_z)*k] not in x_nodes_mechanical:
-                        x_nodes_mechanical.append([x_min+(x_max-x_min)/(num_pixels_x)*(i+1), y_min+(y_max-y_min)/(num_pixels_y)*(j+1), z_min+(z_max-z_min)/(num_pixels_z)*k])
-                        
-                    if [x_min+(x_max-x_min)/(num_pixels_x)*i, y_min+(y_max-y_min)/(num_pixels_y)*(j+1), z_min+(z_max-z_min)/(num_pixels_z)*k] not in x_nodes_mechanical:
-                        x_nodes_mechanical.append([x_min+(x_max-x_min)/(num_pixels_x)*i, y_min+(y_max-y_min)/(num_pixels_y)*(j+1), z_min+(z_max-z_min)/(num_pixels_z)*k])
-                        
-                    if [x_min+(x_max-x_min)/(num_pixels_x)*i, y_min+(y_max-y_min)/(num_pixels_y)*j, z_min+(z_max-z_min)/(num_pixels_z)*(k+1)] not in x_nodes_mechanical:
-                        x_nodes_mechanical.append([x_min+(x_max-x_min)/(num_pixels_x)*i, y_min+(y_max-y_min)/(num_pixels_y)*j, z_min+(z_max-z_min)/(num_pixels_z)*(k+1)])
-
-                    if [x_min+(x_max-x_min)/(num_pixels_x)*(i+1), y_min+(y_max-y_min)/(num_pixels_y)*(j), z_min+(z_max-z_min)/(num_pixels_z)*(k+1)] not in x_nodes_mechanical:
-                        x_nodes_mechanical.append([x_min+(x_max-x_min)/(num_pixels_x)*(i+1), y_min+(y_max-y_min)/(num_pixels_y)*(j), z_min+(z_max-z_min)/(num_pixels_z)*(k+1)])
-
-                    if [x_min+(x_max-x_min)/(num_pixels_x)*(i+1), y_min+(y_max-y_min)/(num_pixels_y)*(j+1), z_min+(z_max-z_min)/(num_pixels_z)*(k+1)] not in x_nodes_mechanical:
-                        x_nodes_mechanical.append([x_min+(x_max-x_min)/(num_pixels_x)*(i+1), y_min+(y_max-y_min)/(num_pixels_y)*(j+1), z_min+(z_max-z_min)/(num_pixels_z)*(k+1)])
-                        
-                    if [x_min+(x_max-x_min)/(num_pixels_x)*i, y_min+(y_max-y_min)/(num_pixels_y)*(j+1), z_min+(z_max-z_min)/(num_pixels_z)*(k+1)] not in x_nodes_mechanical:
-                        x_nodes_mechanical.append([x_min+(x_max-x_min)/(num_pixels_x)*i, y_min+(y_max-y_min)/(num_pixels_y)*(j+1), z_min+(z_max-z_min)/(num_pixels_z)*(k+1)])
-                        
-
-                # if in electrolyte domain
-                if img_[i, j, k] == 2:
-
-                    cell_nodes_electrolyte_x.append([x_min+(x_max-x_min)/(num_pixels_x)*i, x_min+(x_max-x_min)/(num_pixels_x)*(i+1), x_min+(x_max-x_min)/(num_pixels_x)*(i+1), x_min+(x_max-x_min)/(num_pixels_x)*i, \
-                                                     x_min+(x_max-x_min)/(num_pixels_x)*i, x_min+(x_max-x_min)/(num_pixels_x)*(i+1), x_min+(x_max-x_min)/(num_pixels_x)*(i+1), x_min+(x_max-x_min)/(num_pixels_x)*i])
-                    
-                    cell_nodes_electrolyte_y.append([y_min+(y_max-y_min)/(num_pixels_y)*j, y_min+(y_max-y_min)/(num_pixels_y)*j, y_min+(y_max-y_min)/(num_pixels_y)*(j+1), y_min+(y_max-y_min)/(num_pixels_y)*(j+1), \
-                                                     y_min+(y_max-y_min)/(num_pixels_y)*j, y_min+(y_max-y_min)/(num_pixels_y)*j, y_min+(y_max-y_min)/(num_pixels_y)*(j+1), y_min+(y_max-y_min)/(num_pixels_y)*(j+1)])
-
-                    cell_nodes_electrolyte_z.append([z_min+(z_max-z_min)/(num_pixels_z)*k, z_min+(z_max-z_min)/(num_pixels_z)*k, z_min+(z_max-z_min)/(num_pixels_z)*k, z_min+(z_max-z_min)/(num_pixels_z)*k, \
-                                                     z_min+(z_max-z_min)/(num_pixels_z)*(k+1), z_min+(z_max-z_min)/(num_pixels_z)*(k+1), z_min+(z_max-z_min)/(num_pixels_z)*(k+1), z_min+(z_max-z_min)/(num_pixels_z)*(k+1)])
-
-
-                    if j == 0:
-                        cell_nodes_left_electrolyte_x.append([x_min+(x_max-x_min)/(num_pixels_x)*i, x_min+(x_max-x_min)/(num_pixels_x)*(i+1), x_min+(x_max-x_min)/(num_pixels_x)*(i+1), x_min+(x_max-x_min)/(num_pixels_x)*i])
-                        cell_nodes_left_electrolyte_z.append([z_min+(z_max-z_min)/(num_pixels_z)*k, z_min+(z_max-z_min)/(num_pixels_z)*k, z_min+(z_max-z_min)/(num_pixels_z)*(k+1), z_min+(z_max-z_min)/(num_pixels_z)*(k+1)])
-                    
-                    # check if each edge is a triple junction, edge 1
-                    adjacent_pixel_index = np.array([[i,j-1,k],[i,j-1,k-1],[i,j,k-1]]) # 3 adjacent pixels
-                    
-                    filter_mask = (
-                            np.all(adjacent_pixel_index >= 0, axis=1) &  # all values non-negative
-                            (adjacent_pixel_index[:, 0] <= num_pixels_x-1) &         # first column ≤ num_pixels_x
-                            (adjacent_pixel_index[:, 1] <= num_pixels_y-1) &        # second column ≤ num_pixels_y
-                            (adjacent_pixel_index[:, 2] <= num_pixels_z-1)         # third column ≤ num_pixels_z
-                            )
-                    
-                    filtered_adjacent_pixel_index = adjacent_pixel_index[filter_mask]
-                    unique_id_djacent_pixels = np.unique(img_[tuple(filtered_adjacent_pixel_index.T)])
-                    # check_if_edge = np.any(adjacent_pixel_index<0) or np.any(adjacent_pixel_index[:, 0] >= num_pixels_x) or np.any(adjacent_pixel_index[:, 1] >= num_pixels_y) or np.any(adjacent_pixel_index[:, 2] >= num_pixels_z)
-
-                    if (0 in unique_id_djacent_pixels and 1 in unique_id_djacent_pixels): # or (1 in unique_id_djacent_pixels and check_if_edge): 
-                        if [x_min+(x_max-x_min)/(num_pixels_x)*i, y_min+(y_max-y_min)/(num_pixels_y)*j, z_min+(z_max-z_min)/(num_pixels_z)*k, x_min+(x_max-x_min)/(num_pixels_x)*(i+1), y_min+(y_max-y_min)/(num_pixels_y)*j, z_min+(z_max-z_min)/(num_pixels_z)*k] not in segments_source:
-                            segments_source.append([x_min+(x_max-x_min)/(num_pixels_x)*i, y_min+(y_max-y_min)/(num_pixels_y)*j, z_min+(z_max-z_min)/(num_pixels_z)*k, x_min+(x_max-x_min)/(num_pixels_x)*(i+1), y_min+(y_max-y_min)/(num_pixels_y)*j, z_min+(z_max-z_min)/(num_pixels_z)*k])
-                    
-                    # edge 2
-                    adjacent_pixel_index = np.array([[i+1,j,k],[i+1,j,k-1],[i,j,k-1]]) # 3 adjacent pixels
-                    filter_mask = (
-                            np.all(adjacent_pixel_index >= 0, axis=1) &  # all values non-negative
-                            (adjacent_pixel_index[:, 0] <= num_pixels_x-1) &         # first column ≤ num_pixels_x
-                            (adjacent_pixel_index[:, 1] <= num_pixels_y-1) &        # second column ≤ num_pixels_y
-                            (adjacent_pixel_index[:, 2] <= num_pixels_z-1)         # third column ≤ num_pixels_z
-                            )
-                    filtered_adjacent_pixel_index = adjacent_pixel_index[filter_mask]
-                    unique_id_djacent_pixels = np.unique(img_[tuple(filtered_adjacent_pixel_index.T)])
-                    # check_if_edge = np.any(adjacent_pixel_index<0) or np.any(adjacent_pixel_index[:, 0] >= num_pixels_x) or np.any(adjacent_pixel_index[:, 1] >= num_pixels_y) or np.any(adjacent_pixel_index[:, 2] >= num_pixels_z)
-
-                    if (0 in unique_id_djacent_pixels and 1 in unique_id_djacent_pixels):# or (1 in unique_id_djacent_pixels and check_if_edge): 
-                        if [x_min+(x_max-x_min)/(num_pixels_x)*(i+1), y_min+(y_max-y_min)/(num_pixels_y)*j, z_min+(z_max-z_min)/(num_pixels_z)*k, x_min+(x_max-x_min)/(num_pixels_x)*(i+1), y_min+(y_max-y_min)/(num_pixels_y)*(j+1), z_min+(z_max-z_min)/(num_pixels_z)*k] not in segments_source:
-                            segments_source.append([x_min+(x_max-x_min)/(num_pixels_x)*(i+1), y_min+(y_max-y_min)/(num_pixels_y)*j, z_min+(z_max-z_min)/(num_pixels_z)*k, x_min+(x_max-x_min)/(num_pixels_x)*(i+1), y_min+(y_max-y_min)/(num_pixels_y)*(j+1), z_min+(z_max-z_min)/(num_pixels_z)*k])
-                    
-                    # edge 3
-                    adjacent_pixel_index = np.array([[i,j+1,k],[i,j+1,k-1],[i,j,k-1]]) # 3 adjacent pixels
-                    filter_mask = (
-                            np.all(adjacent_pixel_index >= 0, axis=1) &  # all values non-negative
-                            (adjacent_pixel_index[:, 0] <= num_pixels_x-1) &         # first column ≤ num_pixels_x
-                            (adjacent_pixel_index[:, 1] <= num_pixels_y-1) &        # second column ≤ num_pixels_y
-                            (adjacent_pixel_index[:, 2] <= num_pixels_z-1)         # third column ≤ num_pixels_z
-                            )
-                    filtered_adjacent_pixel_index = adjacent_pixel_index[filter_mask]
-                    unique_id_djacent_pixels = np.unique(img_[tuple(filtered_adjacent_pixel_index.T)])
-                    # check_if_edge = np.any(adjacent_pixel_index<0) or np.any(adjacent_pixel_index[:, 0] >= num_pixels_x) or np.any(adjacent_pixel_index[:, 1] >= num_pixels_y) or np.any(adjacent_pixel_index[:, 2] >= num_pixels_z)
-
-                    if (0 in unique_id_djacent_pixels and 1 in unique_id_djacent_pixels):# or (1 in unique_id_djacent_pixels and check_if_edge): 
-                        if [x_min+(x_max-x_min)/(num_pixels_x)*(i), y_min+(y_max-y_min)/(num_pixels_y)*(j+1), z_min+(z_max-z_min)/(num_pixels_z)*k, x_min+(x_max-x_min)/(num_pixels_x)*(i+1), y_min+(y_max-y_min)/(num_pixels_y)*(j+1), z_min+(z_max-z_min)/(num_pixels_z)*k] not in segments_source:
-                            segments_source.append([x_min+(x_max-x_min)/(num_pixels_x)*i, y_min+(y_max-y_min)/(num_pixels_y)*(j+1), z_min+(z_max-z_min)/(num_pixels_z)*k, x_min+(x_max-x_min)/(num_pixels_x)*(i+1), y_min+(y_max-y_min)/(num_pixels_y)*(j+1), z_min+(z_max-z_min)/(num_pixels_z)*k])
-                    
-                    # edge 4
-                    adjacent_pixel_index = np.array([[i-1,j,k],[i-1,j,k-1],[i,j,k-1]]) # 3 adjacent pixels
-                    filter_mask = (
-                            np.all(adjacent_pixel_index >= 0, axis=1) &  # all values non-negative
-                            (adjacent_pixel_index[:, 0] <= num_pixels_x-1) &         # first column ≤ num_pixels_x
-                            (adjacent_pixel_index[:, 1] <= num_pixels_y-1) &        # second column ≤ num_pixels_y
-                            (adjacent_pixel_index[:, 2] <= num_pixels_z-1)         # third column ≤ num_pixels_z
-                            )
-                    filtered_adjacent_pixel_index = adjacent_pixel_index[filter_mask]
-                    unique_id_djacent_pixels = np.unique(img_[tuple(filtered_adjacent_pixel_index.T)])
-                    # check_if_edge = np.any(adjacent_pixel_index<0) or np.any(adjacent_pixel_index[:, 0] >= num_pixels_x) or np.any(adjacent_pixel_index[:, 1] >= num_pixels_y) or np.any(adjacent_pixel_index[:, 2] >= num_pixels_z)
-
-                    if (0 in unique_id_djacent_pixels and 1 in unique_id_djacent_pixels):# or (1 in unique_id_djacent_pixels and check_if_edge): 
-                        if [x_min+(x_max-x_min)/(num_pixels_x)*i, y_min+(y_max-y_min)/(num_pixels_y)*j, z_min+(z_max-z_min)/(num_pixels_z)*k, x_min+(x_max-x_min)/(num_pixels_x)*(i), y_min+(y_max-y_min)/(num_pixels_y)*(j+1), z_min+(z_max-z_min)/(num_pixels_z)*k] not in segments_source:
-                            segments_source.append([x_min+(x_max-x_min)/(num_pixels_x)*i, y_min+(y_max-y_min)/(num_pixels_y)*j, z_min+(z_max-z_min)/(num_pixels_z)*k, x_min+(x_max-x_min)/(num_pixels_x)*(i), y_min+(y_max-y_min)/(num_pixels_y)*(j+1), z_min+(z_max-z_min)/(num_pixels_z)*k])
-                    
-                    # edge 5
-                    adjacent_pixel_index = np.array([[i,j-1,k],[i,j-1,k+1],[i,j,k+1]]) # 3 adjacent pixels
-                    filter_mask = (
-                            np.all(adjacent_pixel_index >= 0, axis=1) &  # all values non-negative
-                            (adjacent_pixel_index[:, 0] <= num_pixels_x-1) &         # first column ≤ num_pixels_x
-                            (adjacent_pixel_index[:, 1] <= num_pixels_y-1) &        # second column ≤ num_pixels_y
-                            (adjacent_pixel_index[:, 2] <= num_pixels_z-1)         # third column ≤ num_pixels_z
-                            )
-                    filtered_adjacent_pixel_index = adjacent_pixel_index[filter_mask]
-                    unique_id_djacent_pixels = np.unique(img_[tuple(filtered_adjacent_pixel_index.T)])
-                    # check_if_edge = np.any(adjacent_pixel_index<0) or np.any(adjacent_pixel_index[:, 0] >= num_pixels_x) or np.any(adjacent_pixel_index[:, 1] >= num_pixels_y) or np.any(adjacent_pixel_index[:, 2] >= num_pixels_z)
-
-                    if (0 in unique_id_djacent_pixels and 1 in unique_id_djacent_pixels):# or (1 in unique_id_djacent_pixels and check_if_edge): 
-                        if [x_min+(x_max-x_min)/(num_pixels_x)*i, y_min+(y_max-y_min)/(num_pixels_y)*j, z_min+(z_max-z_min)/(num_pixels_z)*(k+1), x_min+(x_max-x_min)/(num_pixels_x)*(i+1), y_min+(y_max-y_min)/(num_pixels_y)*j, z_min+(z_max-z_min)/(num_pixels_z)*(k+1)] not in segments_source:
-                            segments_source.append([x_min+(x_max-x_min)/(num_pixels_x)*i, y_min+(y_max-y_min)/(num_pixels_y)*j, z_min+(z_max-z_min)/(num_pixels_z)*(k+1), x_min+(x_max-x_min)/(num_pixels_x)*(i+1), y_min+(y_max-y_min)/(num_pixels_y)*j, z_min+(z_max-z_min)/(num_pixels_z)*(k+1)])
-                    
-                    # edge 6
-                    adjacent_pixel_index = np.array([[i+1,j,k],[i+1,j,k+1],[i,j,k+1]]) # 3 adjacent pixels
-                    filter_mask = (
-                            np.all(adjacent_pixel_index >= 0, axis=1) &  # all values non-negative
-                            (adjacent_pixel_index[:, 0] <= num_pixels_x-1) &         # first column ≤ num_pixels_x
-                            (adjacent_pixel_index[:, 1] <= num_pixels_y-1) &        # second column ≤ num_pixels_y
-                            (adjacent_pixel_index[:, 2] <= num_pixels_z-1)         # third column ≤ num_pixels_z
-                            )
-                    filtered_adjacent_pixel_index = adjacent_pixel_index[filter_mask]
-                    unique_id_djacent_pixels = np.unique(img_[tuple(filtered_adjacent_pixel_index.T)])
-                    # check_if_edge = np.any(adjacent_pixel_index<0) or np.any(adjacent_pixel_index[:, 0] >= num_pixels_x) or np.any(adjacent_pixel_index[:, 1] >= num_pixels_y) or np.any(adjacent_pixel_index[:, 2] >= num_pixels_z)
-
-                    if (0 in unique_id_djacent_pixels and 1 in unique_id_djacent_pixels):# or (1 in unique_id_djacent_pixels and check_if_edge): 
-                        if [x_min+(x_max-x_min)/(num_pixels_x)*(i+1), y_min+(y_max-y_min)/(num_pixels_y)*j, z_min+(z_max-z_min)/(num_pixels_z)*(k+1), x_min+(x_max-x_min)/(num_pixels_x)*(i+1), y_min+(y_max-y_min)/(num_pixels_y)*(j+1), z_min+(z_max-z_min)/(num_pixels_z)*(k+1)] not in segments_source:
-                            segments_source.append([x_min+(x_max-x_min)/(num_pixels_x)*(i+1), y_min+(y_max-y_min)/(num_pixels_y)*j, z_min+(z_max-z_min)/(num_pixels_z)*(k+1), x_min+(x_max-x_min)/(num_pixels_x)*(i+1), y_min+(y_max-y_min)/(num_pixels_y)*(j+1), z_min+(z_max-z_min)/(num_pixels_z)*(k+1)])
-                    
-                    # edge 7
-                    adjacent_pixel_index = np.array([[i,j+1,k],[i,j+1,k+1],[i,j,k+1]]) # 3 adjacent pixels
-                    filter_mask = (
-                            np.all(adjacent_pixel_index >= 0, axis=1) &  # all values non-negative
-                            (adjacent_pixel_index[:, 0] <= num_pixels_x-1) &         # first column ≤ num_pixels_x
-                            (adjacent_pixel_index[:, 1] <= num_pixels_y-1) &        # second column ≤ num_pixels_y
-                            (adjacent_pixel_index[:, 2] <= num_pixels_z-1)         # third column ≤ num_pixels_z
-                            )
-                    filtered_adjacent_pixel_index = adjacent_pixel_index[filter_mask]
-                    unique_id_djacent_pixels = np.unique(img_[tuple(filtered_adjacent_pixel_index.T)])
-                    # check_if_edge = np.any(adjacent_pixel_index<0) or np.any(adjacent_pixel_index[:, 0] >= num_pixels_x) or np.any(adjacent_pixel_index[:, 1] >= num_pixels_y) or np.any(adjacent_pixel_index[:, 2] >= num_pixels_z)
-
-                    if (0 in unique_id_djacent_pixels and 1 in unique_id_djacent_pixels):# or (1 in unique_id_djacent_pixels and check_if_edge): 
-                        if [x_min+(x_max-x_min)/(num_pixels_x)*i, y_min+(y_max-y_min)/(num_pixels_y)*(j+1), z_min+(z_max-z_min)/(num_pixels_z)*(k+1), x_min+(x_max-x_min)/(num_pixels_x)*(i+1), y_min+(y_max-y_min)/(num_pixels_y)*(j+1), z_min+(z_max-z_min)/(num_pixels_z)*(k+1)] not in segments_source:
-                            segments_source.append([x_min+(x_max-x_min)/(num_pixels_x)*(i), y_min+(y_max-y_min)/(num_pixels_y)*(j+1), z_min+(z_max-z_min)/(num_pixels_z)*(k+1), x_min+(x_max-x_min)/(num_pixels_x)*(i+1), y_min+(y_max-y_min)/(num_pixels_y)*(j+1), z_min+(z_max-z_min)/(num_pixels_z)*(k+1)])
-                    
-                    # edge 8
-                    adjacent_pixel_index = np.array([[i-1,j,k],[i-1,j,k+1],[i,j,k+1]]) # 3 adjacent pixels
-                    filter_mask = (
-                            np.all(adjacent_pixel_index >= 0, axis=1) &  # all values non-negative
-                            (adjacent_pixel_index[:, 0] <= num_pixels_x-1) &         # first column ≤ num_pixels_x
-                            (adjacent_pixel_index[:, 1] <= num_pixels_y-1) &        # second column ≤ num_pixels_y
-                            (adjacent_pixel_index[:, 2] <= num_pixels_z-1)         # third column ≤ num_pixels_z
-                            )
-                    filtered_adjacent_pixel_index = adjacent_pixel_index[filter_mask]
-                    unique_id_djacent_pixels = np.unique(img_[tuple(filtered_adjacent_pixel_index.T)])
-                    # check_if_edge = np.any(adjacent_pixel_index<0) or np.any(adjacent_pixel_index[:, 0] >= num_pixels_x) or np.any(adjacent_pixel_index[:, 1] >= num_pixels_y) or np.any(adjacent_pixel_index[:, 2] >= num_pixels_z)
-
-                    if (0 in unique_id_djacent_pixels and 1 in unique_id_djacent_pixels):# or (1 in unique_id_djacent_pixels and check_if_edge): 
-                        if [x_min+(x_max-x_min)/(num_pixels_x)*i, y_min+(y_max-y_min)/(num_pixels_y)*j, z_min+(z_max-z_min)/(num_pixels_z)*(k+1), x_min+(x_max-x_min)/(num_pixels_x)*(i), y_min+(y_max-y_min)/(num_pixels_y)*(j+1), z_min+(z_max-z_min)/(num_pixels_z)*(k+1)] not in segments_source:
-                            segments_source.append([x_min+(x_max-x_min)/(num_pixels_x)*i, y_min+(y_max-y_min)/(num_pixels_y)*j, z_min+(z_max-z_min)/(num_pixels_z)*(k+1), x_min+(x_max-x_min)/(num_pixels_x)*(i), y_min+(y_max-y_min)/(num_pixels_y)*(j+1), z_min+(z_max-z_min)/(num_pixels_z)*(k+1)])
-                    
-                    # edge 9
-                    adjacent_pixel_index = np.array([[i+1,j-1,k],[i,j-1,k],[i+1,j,k]]) # 3 adjacent pixels
-                    filter_mask = (
-                            np.all(adjacent_pixel_index >= 0, axis=1) &  # all values non-negative
-                            (adjacent_pixel_index[:, 0] <= num_pixels_x-1) &         # first column ≤ num_pixels_x
-                            (adjacent_pixel_index[:, 1] <= num_pixels_y-1) &        # second column ≤ num_pixels_y
-                            (adjacent_pixel_index[:, 2] <= num_pixels_z-1)         # third column ≤ num_pixels_z
-                            )
-                    filtered_adjacent_pixel_index = adjacent_pixel_index[filter_mask]
-                    unique_id_djacent_pixels = np.unique(img_[tuple(filtered_adjacent_pixel_index.T)])
-                    # check_if_edge = np.any(adjacent_pixel_index<0) or np.any(adjacent_pixel_index[:, 0] >= num_pixels_x) or np.any(adjacent_pixel_index[:, 1] >= num_pixels_y) or np.any(adjacent_pixel_index[:, 2] >= num_pixels_z)
-
-                    if (0 in unique_id_djacent_pixels and 1 in unique_id_djacent_pixels):# or (1 in unique_id_djacent_pixels and check_if_edge): 
-                        if [x_min+(x_max-x_min)/(num_pixels_x)*(i+1), y_min+(y_max-y_min)/(num_pixels_y)*j, z_min+(z_max-z_min)/(num_pixels_z)*k, x_min+(x_max-x_min)/(num_pixels_x)*(i+1), y_min+(y_max-y_min)/(num_pixels_y)*j, z_min+(z_max-z_min)/(num_pixels_z)*(k+1)] not in segments_source:
-                            segments_source.append([x_min+(x_max-x_min)/(num_pixels_x)*(i+1), y_min+(y_max-y_min)/(num_pixels_y)*j, z_min+(z_max-z_min)/(num_pixels_z)*k, x_min+(x_max-x_min)/(num_pixels_x)*(i+1), y_min+(y_max-y_min)/(num_pixels_y)*j, z_min+(z_max-z_min)/(num_pixels_z)*(k+1)])
-                    
-                    # edge 10
-                    adjacent_pixel_index = np.array([[i+1,j,k],[i,j+1,k],[i+1,j+1,k]]) # 3 adjacent pixels
-                    filter_mask = (
-                            np.all(adjacent_pixel_index >= 0, axis=1) &  # all values non-negative
-                            (adjacent_pixel_index[:, 0] <= num_pixels_x-1) &         # first column ≤ num_pixels_x
-                            (adjacent_pixel_index[:, 1] <= num_pixels_y-1) &        # second column ≤ num_pixels_y
-                            (adjacent_pixel_index[:, 2] <= num_pixels_z-1)         # third column ≤ num_pixels_z
-                            )
-                    filtered_adjacent_pixel_index = adjacent_pixel_index[filter_mask]
-                    unique_id_djacent_pixels = np.unique(img_[tuple(filtered_adjacent_pixel_index.T)])
-                    # check_if_edge = np.any(adjacent_pixel_index<0) or np.any(adjacent_pixel_index[:, 0] >= num_pixels_x) or np.any(adjacent_pixel_index[:, 1] >= num_pixels_y) or np.any(adjacent_pixel_index[:, 2] >= num_pixels_z)
-
-                    if (0 in unique_id_djacent_pixels and 1 in unique_id_djacent_pixels):# or (1 in unique_id_djacent_pixels and check_if_edge): 
-                        if [x_min+(x_max-x_min)/(num_pixels_x)*(i+1), y_min+(y_max-y_min)/(num_pixels_y)*(j+1), z_min+(z_max-z_min)/(num_pixels_z)*k, x_min+(x_max-x_min)/(num_pixels_x)*(i+1), y_min+(y_max-y_min)/(num_pixels_y)*(j+1), z_min+(z_max-z_min)/(num_pixels_z)*(k+1)] not in segments_source:
-                            segments_source.append([x_min+(x_max-x_min)/(num_pixels_x)*(i+1), y_min+(y_max-y_min)/(num_pixels_y)*(j+1), z_min+(z_max-z_min)/(num_pixels_z)*k, x_min+(x_max-x_min)/(num_pixels_x)*(i+1), y_min+(y_max-y_min)/(num_pixels_y)*(j+1), z_min+(z_max-z_min)/(num_pixels_z)*(k+1)])
-                    
-                    # edge 11
-                    adjacent_pixel_index = np.array([[i,j+1,k],[i-1,j,k],[i-1,j+1,k]]) # 3 adjacent pixels
-                    filter_mask = (
-                            np.all(adjacent_pixel_index >= 0, axis=1) &  # all values non-negative
-                            (adjacent_pixel_index[:, 0] <= num_pixels_x-1) &         # first column ≤ num_pixels_x
-                            (adjacent_pixel_index[:, 1] <= num_pixels_y-1) &        # second column ≤ num_pixels_y
-                            (adjacent_pixel_index[:, 2] <= num_pixels_z-1)         # third column ≤ num_pixels_z
-                            )
-                    filtered_adjacent_pixel_index = adjacent_pixel_index[filter_mask]
-                    unique_id_djacent_pixels = np.unique(img_[tuple(filtered_adjacent_pixel_index.T)])
-                    # check_if_edge = np.any(adjacent_pixel_index<0) or np.any(adjacent_pixel_index[:, 0] >= num_pixels_x) or np.any(adjacent_pixel_index[:, 1] >= num_pixels_y) or np.any(adjacent_pixel_index[:, 2] >= num_pixels_z)
-
-                    if (0 in unique_id_djacent_pixels and 1 in unique_id_djacent_pixels):# or (1 in unique_id_djacent_pixels and check_if_edge): 
-                        if [x_min+(x_max-x_min)/(num_pixels_x)*i, y_min+(y_max-y_min)/(num_pixels_y)*(j+1), z_min+(z_max-z_min)/(num_pixels_z)*k, x_min+(x_max-x_min)/(num_pixels_x)*(i), y_min+(y_max-y_min)/(num_pixels_y)*(j+1), z_min+(z_max-z_min)/(num_pixels_z)*(k+1)] not in segments_source:
-                            segments_source.append([x_min+(x_max-x_min)/(num_pixels_x)*i, y_min+(y_max-y_min)/(num_pixels_y)*(j+1), z_min+(z_max-z_min)/(num_pixels_z)*k, x_min+(x_max-x_min)/(num_pixels_x)*(i), y_min+(y_max-y_min)/(num_pixels_y)*(j+1), z_min+(z_max-z_min)/(num_pixels_z)*(k+1)])
-                    
-                    # edge 12
-                    adjacent_pixel_index = np.array([[i,j-1,k],[i-1,j,k],[i-1,j-1,k]]) # 3 adjacent pixels
-                    filter_mask = (
-                            np.all(adjacent_pixel_index >= 0, axis=1) &  # all values non-negative
-                            (adjacent_pixel_index[:, 0] <= num_pixels_x-1) &         # first column ≤ num_pixels_x
-                            (adjacent_pixel_index[:, 1] <= num_pixels_y-1) &        # second column ≤ num_pixels_y
-                            (adjacent_pixel_index[:, 2] <= num_pixels_z-1)         # third column ≤ num_pixels_z
-                            )
-                    filtered_adjacent_pixel_index = adjacent_pixel_index[filter_mask]
-                    unique_id_djacent_pixels = np.unique(img_[tuple(filtered_adjacent_pixel_index.T)])
-                    # check_if_edge = np.any(adjacent_pixel_index<0) or np.any(adjacent_pixel_index[:, 0] >= num_pixels_x) or np.any(adjacent_pixel_index[:, 1] >= num_pixels_y) or np.any(adjacent_pixel_index[:, 2] >= num_pixels_z)
-
-                    if (0 in unique_id_djacent_pixels and 1 in unique_id_djacent_pixels):# or (1 in unique_id_djacent_pixels and check_if_edge): 
-                        if [x_min+(x_max-x_min)/(num_pixels_x)*i, y_min+(y_max-y_min)/(num_pixels_y)*j, z_min+(z_max-z_min)/(num_pixels_z)*k, x_min+(x_max-x_min)/(num_pixels_x)*(i), y_min+(y_max-y_min)/(num_pixels_y)*j, z_min+(z_max-z_min)/(num_pixels_z)*(k+1)] not in segments_source:
-                            segments_source.append([x_min+(x_max-x_min)/(num_pixels_x)*i, y_min+(y_max-y_min)/(num_pixels_y)*j, z_min+(z_max-z_min)/(num_pixels_z)*k, x_min+(x_max-x_min)/(num_pixels_x)*(i), y_min+(y_max-y_min)/(num_pixels_y)*j, z_min+(z_max-z_min)/(num_pixels_z)*(k+1)])
-                    
-                
-                    
-                    if [x_min+(x_max-x_min)/(num_pixels_x)*i, y_min+(y_max-y_min)/(num_pixels_y)*j, z_min+(z_max-z_min)/(num_pixels_z)*k] not in x_nodes_electrolyte:
-                        x_nodes_electrolyte.append([x_min+(x_max-x_min)/(num_pixels_x)*i, y_min+(y_max-y_min)/(num_pixels_y)*j, z_min+(z_max-z_min)/(num_pixels_z)*k])
-                        # if on left boundary
-                        if j == 0:
-                            nodes_id_left_electrolyte.append(nodes_id_electrolyte)
-
-                        nodes_id_electrolyte += 1
-
-                    if [x_min+(x_max-x_min)/(num_pixels_x)*(i+1), y_min+(y_max-y_min)/(num_pixels_y)*(j), z_min+(z_max-z_min)/(num_pixels_z)*k] not in x_nodes_electrolyte:
-                        x_nodes_electrolyte.append([x_min+(x_max-x_min)/(num_pixels_x)*(i+1), y_min+(y_max-y_min)/(num_pixels_y)*(j), z_min+(z_max-z_min)/(num_pixels_z)*k])
-                    # if on left boundary
-                        if j == 0:
-                            nodes_id_left_electrolyte.append(nodes_id_electrolyte)
-
-                        nodes_id_electrolyte += 1
-
-                    if [x_min+(x_max-x_min)/(num_pixels_x)*(i+1), y_min+(y_max-y_min)/(num_pixels_y)*(j+1), z_min+(z_max-z_min)/(num_pixels_z)*k] not in x_nodes_electrolyte:
-                        x_nodes_electrolyte.append([x_min+(x_max-x_min)/(num_pixels_x)*(i+1), y_min+(y_max-y_min)/(num_pixels_y)*(j+1), z_min+(z_max-z_min)/(num_pixels_z)*k])
-                        
-                        nodes_id_electrolyte += 1
-
-                    if [x_min+(x_max-x_min)/(num_pixels_x)*i, y_min+(y_max-y_min)/(num_pixels_y)*(j+1), z_min+(z_max-z_min)/(num_pixels_z)*k] not in x_nodes_electrolyte:
-                        x_nodes_electrolyte.append([x_min+(x_max-x_min)/(num_pixels_x)*i, y_min+(y_max-y_min)/(num_pixels_y)*(j+1), z_min+(z_max-z_min)/(num_pixels_z)*k])
-                        
-                        nodes_id_electrolyte += 1
-
-                    if [x_min+(x_max-x_min)/(num_pixels_x)*i, y_min+(y_max-y_min)/(num_pixels_y)*j, z_min+(z_max-z_min)/(num_pixels_z)*(k+1)] not in x_nodes_electrolyte:
-                        x_nodes_electrolyte.append([x_min+(x_max-x_min)/(num_pixels_x)*i, y_min+(y_max-y_min)/(num_pixels_y)*j, z_min+(z_max-z_min)/(num_pixels_z)*(k+1)])
-                    # if on left boundary
-                        if j == 0:
-                            nodes_id_left_electrolyte.append(nodes_id_electrolyte)
-
-                        nodes_id_electrolyte += 1
-
-                    if [x_min+(x_max-x_min)/(num_pixels_x)*(i+1), y_min+(y_max-y_min)/(num_pixels_y)*(j), z_min+(z_max-z_min)/(num_pixels_z)*(k+1)] not in x_nodes_electrolyte:
-                        x_nodes_electrolyte.append([x_min+(x_max-x_min)/(num_pixels_x)*(i+1), y_min+(y_max-y_min)/(num_pixels_y)*(j), z_min+(z_max-z_min)/(num_pixels_z)*(k+1)])
-                    # if on left boundary
-                        if j == 0:
-                            nodes_id_left_electrolyte.append(nodes_id_electrolyte)
-
-                        nodes_id_electrolyte += 1
-
-                    if [x_min+(x_max-x_min)/(num_pixels_x)*(i+1), y_min+(y_max-y_min)/(num_pixels_y)*(j+1), z_min+(z_max-z_min)/(num_pixels_z)*(k+1)] not in x_nodes_electrolyte:
-                        x_nodes_electrolyte.append([x_min+(x_max-x_min)/(num_pixels_x)*(i+1), y_min+(y_max-y_min)/(num_pixels_y)*(j+1), z_min+(z_max-z_min)/(num_pixels_z)*(k+1)])
-                        
-                        nodes_id_electrolyte += 1
-
-                    if [x_min+(x_max-x_min)/(num_pixels_x)*i, y_min+(y_max-y_min)/(num_pixels_y)*(j+1), z_min+(z_max-z_min)/(num_pixels_z)*(k+1)] not in x_nodes_electrolyte:
-                        x_nodes_electrolyte.append([x_min+(x_max-x_min)/(num_pixels_x)*i, y_min+(y_max-y_min)/(num_pixels_y)*(j+1), z_min+(z_max-z_min)/(num_pixels_z)*(k+1)])
-                        
-                        nodes_id_electrolyte += 1
-
-                    # get the interface, surface interface
-                    # surface 1
-                    surface_adjacent_pixel_index = np.array([i-1,j,k]) # 3 adjacent pixels
-                    if (i-1)>=0 and img_[tuple(surface_adjacent_pixel_index)] == 1: # electrolyte/electrode interface
-                        cell_nodes_interface_electrode_electrolyte_x.append([x_min+(x_max-x_min)/(num_pixels_x)*i, x_min+(x_max-x_min)/(num_pixels_x)*i, x_min+(x_max-x_min)/(num_pixels_x)*i, x_min+(x_max-x_min)/(num_pixels_x)*i])
-                        cell_nodes_interface_electrode_electrolyte_y.append([y_min+(y_max-y_min)/(num_pixels_y)*j, y_min+(y_max-y_min)/(num_pixels_y)*(j+1), y_min+(y_max-y_min)/(num_pixels_y)*(j+1), y_min+(y_max-y_min)/(num_pixels_y)*(j)])
-                        cell_nodes_interface_electrode_electrolyte_z.append([z_min+(z_max-z_min)/(num_pixels_z)*k, z_min+(z_max-z_min)/(num_pixels_z)*(k), z_min+(z_max-z_min)/(num_pixels_z)*(k+1), z_min+(z_max-z_min)/(num_pixels_z)*(k+1)])
-                        # cell_nodes_interface_electrode_electrolyte_electrode_x.append([x_min+(x_max-x_min)/(num_pixels_x)*i, x_min+(x_max-x_min)/(num_pixels_x)*i, x_min+(x_max-x_min)/(num_pixels_x)*i, x_min+(x_max-x_min)/(num_pixels_x)*i])
-                        # cell_nodes_interface_electrode_electrolyte_electrode_y.append([y_min+(y_max-y_min)/(num_pixels_y)*j, y_min+(y_max-y_min)/(num_pixels_y)*(j+1), y_min+(y_max-y_min)/(num_pixels_y)*(j+1), y_min+(y_max-y_min)/(num_pixels_y)*(j)])
-                        # cell_nodes_interface_electrode_electrolyte_electrode_z.append([z_min+(z_max-z_min)/(num_pixels_z)*k, z_min+(z_max-z_min)/(num_pixels_z)*(k), z_min+(z_max-z_min)/(num_pixels_z)*(k+1), z_min+(z_max-z_min)/(num_pixels_z)*(k+1)])
-                    
-                    
-                    # surface 2
-                    surface_adjacent_pixel_index = np.array([i+1,j,k]) # 3 adjacent pixels
-                    if (i+1)<num_pixels_x and img_[tuple(surface_adjacent_pixel_index)] == 1: # electrolyte/electrode interface
-                        cell_nodes_interface_electrode_electrolyte_x.append([x_min+(x_max-x_min)/(num_pixels_x)*(i+1), x_min+(x_max-x_min)/(num_pixels_x)*(i+1), x_min+(x_max-x_min)/(num_pixels_x)*(i+1), x_min+(x_max-x_min)/(num_pixels_x)*(i+1)])
-                        cell_nodes_interface_electrode_electrolyte_y.append([y_min+(y_max-y_min)/(num_pixels_y)*j, y_min+(y_max-y_min)/(num_pixels_y)*(j+1), y_min+(y_max-y_min)/(num_pixels_y)*(j+1), y_min+(y_max-y_min)/(num_pixels_y)*j])
-                        cell_nodes_interface_electrode_electrolyte_z.append([z_min+(z_max-z_min)/(num_pixels_z)*k, z_min+(z_max-z_min)/(num_pixels_z)*k, z_min+(z_max-z_min)/(num_pixels_z)*(k+1), z_min+(z_max-z_min)/(num_pixels_z)*(k+1)])
-                        # cell_nodes_interface_electrode_electrolyte_electrode_x.append([x_min+(x_max-x_min)/(num_pixels_x)*(i+1), x_min+(x_max-x_min)/(num_pixels_x)*(i+1), x_min+(x_max-x_min)/(num_pixels_x)*(i+1), x_min+(x_max-x_min)/(num_pixels_x)*(i+1)])
-                        # cell_nodes_interface_electrode_electrolyte_electrode_y.append([y_min+(y_max-y_min)/(num_pixels_y)*j, y_min+(y_max-y_min)/(num_pixels_y)*(j), y_min+(y_max-y_min)/(num_pixels_y)*(j+1), y_min+(y_max-y_min)/(num_pixels_y)*(j+1)])
-                        # cell_nodes_interface_electrode_electrolyte_electrode_z.append([z_min+(z_max-z_min)/(num_pixels_z)*k, z_min+(z_max-z_min)/(num_pixels_z)*(k+1), z_min+(z_max-z_min)/(num_pixels_z)*(k+1), z_min+(z_max-z_min)/(num_pixels_z)*(k)])
-                    
-                    
-                    # surface 3
-                    surface_adjacent_pixel_index = np.array([i,j-1,k]) # 3 adjacent pixels
-                    if (j-1)>=0 and img_[tuple(surface_adjacent_pixel_index)] == 1: # electrolyte/electrode interface
-                        cell_nodes_interface_electrode_electrolyte_x.append([x_min+(x_max-x_min)/(num_pixels_x)*i, x_min+(x_max-x_min)/(num_pixels_x)*(i+1), x_min+(x_max-x_min)/(num_pixels_x)*(i+1), x_min+(x_max-x_min)/(num_pixels_x)*i])
-                        cell_nodes_interface_electrode_electrolyte_y.append([y_min+(y_max-y_min)/(num_pixels_y)*j, y_min+(y_max-y_min)/(num_pixels_y)*(j), y_min+(y_max-y_min)/(num_pixels_y)*(j), y_min+(y_max-y_min)/(num_pixels_y)*j])
-                        cell_nodes_interface_electrode_electrolyte_z.append([z_min+(z_max-z_min)/(num_pixels_z)*k, z_min+(z_max-z_min)/(num_pixels_z)*k, z_min+(z_max-z_min)/(num_pixels_z)*(k+1), z_min+(z_max-z_min)/(num_pixels_z)*(k+1)])
-                        # cell_nodes_interface_electrode_electrolyte_electrode_x.append([x_min+(x_max-x_min)/(num_pixels_x)*i, x_min+(x_max-x_min)/(num_pixels_x)*(i), x_min+(x_max-x_min)/(num_pixels_x)*(i+1), x_min+(x_max-x_min)/(num_pixels_x)*(i+1)])
-                        # cell_nodes_interface_electrode_electrolyte_electrode_y.append([y_min+(y_max-y_min)/(num_pixels_y)*j, y_min+(y_max-y_min)/(num_pixels_y)*(j), y_min+(y_max-y_min)/(num_pixels_y)*(j), y_min+(y_max-y_min)/(num_pixels_y)*j])
-                        # cell_nodes_interface_electrode_electrolyte_electrode_z.append([z_min+(z_max-z_min)/(num_pixels_z)*k, z_min+(z_max-z_min)/(num_pixels_z)*(k+1), z_min+(z_max-z_min)/(num_pixels_z)*(k+1), z_min+(z_max-z_min)/(num_pixels_z)*(k)])
-                    
-                    
-                    # surface 4
-                    surface_adjacent_pixel_index = np.array([i,j+1,k]) # 3 adjacent pixels
-                    if (j+1)<num_pixels_y and img_[tuple(surface_adjacent_pixel_index)] == 1: # electrolyte/electrode interface
-                        cell_nodes_interface_electrode_electrolyte_x.append([x_min+(x_max-x_min)/(num_pixels_x)*(i), x_min+(x_max-x_min)/(num_pixels_x)*(i+1), x_min+(x_max-x_min)/(num_pixels_x)*(i+1), x_min+(x_max-x_min)/(num_pixels_x)*(i)])
-                        cell_nodes_interface_electrode_electrolyte_y.append([y_min+(y_max-y_min)/(num_pixels_y)*(j+1), y_min+(y_max-y_min)/(num_pixels_y)*(j+1), y_min+(y_max-y_min)/(num_pixels_y)*(j+1), y_min+(y_max-y_min)/(num_pixels_y)*(j+1)])
-                        cell_nodes_interface_electrode_electrolyte_z.append([z_min+(z_max-z_min)/(num_pixels_z)*k, z_min+(z_max-z_min)/(num_pixels_z)*k, z_min+(z_max-z_min)/(num_pixels_z)*(k+1), z_min+(z_max-z_min)/(num_pixels_z)*(k+1)])
-                        # cell_nodes_interface_electrode_electrolyte_electrode_x.append([x_min+(x_max-x_min)/(num_pixels_x)*(i+1), x_min+(x_max-x_min)/(num_pixels_x)*(i+1), x_min+(x_max-x_min)/(num_pixels_x)*(i+1), x_min+(x_max-x_min)/(num_pixels_x)*(i)])
-                        # cell_nodes_interface_electrode_electrolyte_electrode_y.append([y_min+(y_max-y_min)/(num_pixels_y)*(j+1), y_min+(y_max-y_min)/(num_pixels_y)*(j+1), y_min+(y_max-y_min)/(num_pixels_y)*(j+1), y_min+(y_max-y_min)/(num_pixels_y)*(j+1)])
-                        # cell_nodes_interface_electrode_electrolyte_electrode_z.append([z_min+(z_max-z_min)/(num_pixels_z)*k, z_min+(z_max-z_min)/(num_pixels_z)*(k+1), z_min+(z_max-z_min)/(num_pixels_z)*(k+1), z_min+(z_max-z_min)/(num_pixels_z)*(k)])
-                    
-                    
-                    # surface 5
-                    surface_adjacent_pixel_index = np.array([i,j,k-1]) # 3 adjacent pixels
-                    if (k-1)>=0 and img_[tuple(surface_adjacent_pixel_index)] == 1: # electrolyte/electrode interface
-                        cell_nodes_interface_electrode_electrolyte_x.append([x_min+(x_max-x_min)/(num_pixels_x)*(i+1), x_min+(x_max-x_min)/(num_pixels_x)*(i+1), x_min+(x_max-x_min)/(num_pixels_x)*(i), x_min+(x_max-x_min)/(num_pixels_x)*(i)])
-                        cell_nodes_interface_electrode_electrolyte_y.append([y_min+(y_max-y_min)/(num_pixels_y)*j, y_min+(y_max-y_min)/(num_pixels_y)*(j+1), y_min+(y_max-y_min)/(num_pixels_y)*(j+1), y_min+(y_max-y_min)/(num_pixels_y)*(j)])
-                        cell_nodes_interface_electrode_electrolyte_z.append([z_min+(z_max-z_min)/(num_pixels_z)*k, z_min+(z_max-z_min)/(num_pixels_z)*k, z_min+(z_max-z_min)/(num_pixels_z)*(k), z_min+(z_max-z_min)/(num_pixels_z)*(k)])
-                        # cell_nodes_interface_electrode_electrolyte_electrode_x.append([x_min+(x_max-x_min)/(num_pixels_x)*(i+1), x_min+(x_max-x_min)/(num_pixels_x)*(i+1), x_min+(x_max-x_min)/(num_pixels_x)*(i), x_min+(x_max-x_min)/(num_pixels_x)*i])
-                        # cell_nodes_interface_electrode_electrolyte_electrode_y.append([y_min+(y_max-y_min)/(num_pixels_y)*j, y_min+(y_max-y_min)/(num_pixels_y)*(j+1), y_min+(y_max-y_min)/(num_pixels_y)*(j+1), y_min+(y_max-y_min)/(num_pixels_y)*(j)])
-                        # cell_nodes_interface_electrode_electrolyte_electrode_z.append([z_min+(z_max-z_min)/(num_pixels_z)*k, z_min+(z_max-z_min)/(num_pixels_z)*k, z_min+(z_max-z_min)/(num_pixels_z)*(k), z_min+(z_max-z_min)/(num_pixels_z)*(k)])
-                    
-                    
-                    # surface 6
-                    surface_adjacent_pixel_index = np.array([i,j,k+1]) # 3 adjacent pixels
-                    if (k+1)<num_pixels_z and img_[tuple(surface_adjacent_pixel_index)] == 1: # electrolyte/electrode interface
-                        cell_nodes_interface_electrode_electrolyte_x.append([x_min+(x_max-x_min)/(num_pixels_x)*(i+1), x_min+(x_max-x_min)/(num_pixels_x)*(i+1), x_min+(x_max-x_min)/(num_pixels_x)*(i), x_min+(x_max-x_min)/(num_pixels_x)*(i)])
-                        cell_nodes_interface_electrode_electrolyte_y.append([y_min+(y_max-y_min)/(num_pixels_y)*(j), y_min+(y_max-y_min)/(num_pixels_y)*(j+1), y_min+(y_max-y_min)/(num_pixels_y)*(j+1), y_min+(y_max-y_min)/(num_pixels_y)*(j)])
-                        cell_nodes_interface_electrode_electrolyte_z.append([z_min+(z_max-z_min)/(num_pixels_z)*(k+1), z_min+(z_max-z_min)/(num_pixels_z)*(k+1), z_min+(z_max-z_min)/(num_pixels_z)*(k+1), z_min+(z_max-z_min)/(num_pixels_z)*(k+1)])
-                        # cell_nodes_interface_electrode_electrolyte_electrode_x.append([x_min+(x_max-x_min)/(num_pixels_x)*(i+1), x_min+(x_max-x_min)/(num_pixels_x)*(i), x_min+(x_max-x_min)/(num_pixels_x)*(i), x_min+(x_max-x_min)/(num_pixels_x)*(i+1)])
-                        # cell_nodes_interface_electrode_electrolyte_electrode_y.append([y_min+(y_max-y_min)/(num_pixels_y)*(j), y_min+(y_max-y_min)/(num_pixels_y)*(j), y_min+(y_max-y_min)/(num_pixels_y)*(j+1), y_min+(y_max-y_min)/(num_pixels_y)*(j+1)])
-                        # cell_nodes_interface_electrode_electrolyte_electrode_z.append([z_min+(z_max-z_min)/(num_pixels_z)*(k+1), z_min+(z_max-z_min)/(num_pixels_z)*(k+1), z_min+(z_max-z_min)/(num_pixels_z)*(k+1), z_min+(z_max-z_min)/(num_pixels_z)*(k+1)])
-                   
-
-                # if in electrode domain
-                if img_[i, j, k] == 1:
-                     
-                     
-                    cell_nodes_electrode_x.append([x_min+(x_max-x_min)/(num_pixels_x)*(i), x_min+(x_max-x_min)/(num_pixels_x)*(i+1), x_min+(x_max-x_min)/(num_pixels_x)*(i+1), x_min+(x_max-x_min)/(num_pixels_x)*i, \
-                                                     x_min+(x_max-x_min)/(num_pixels_x)*(i), x_min+(x_max-x_min)/(num_pixels_x)*(i+1), x_min+(x_max-x_min)/(num_pixels_x)*(i+1), x_min+(x_max-x_min)/(num_pixels_x)*i])
-                    
-                    cell_nodes_electrode_y.append([y_min+(y_max-y_min)/(num_pixels_y)*j, y_min+(y_max-y_min)/(num_pixels_y)*(j), y_min+(y_max-y_min)/(num_pixels_y)*(j+1), y_min+(y_max-y_min)/(num_pixels_y)*(j+1), \
-                                                     y_min+(y_max-y_min)/(num_pixels_y)*j, y_min+(y_max-y_min)/(num_pixels_y)*(j), y_min+(y_max-y_min)/(num_pixels_y)*(j+1), y_min+(y_max-y_min)/(num_pixels_y)*(j+1)])
-
-                    cell_nodes_electrode_z.append([z_min+(z_max-z_min)/(num_pixels_z)*k, z_min+(z_max-z_min)/(num_pixels_z)*k, z_min+(z_max-z_min)/(num_pixels_z)*k, z_min+(z_max-z_min)/(num_pixels_z)*k, \
-                                                     z_min+(z_max-z_min)/(num_pixels_z)*(k+1), z_min+(z_max-z_min)/(num_pixels_z)*(k+1), z_min+(z_max-z_min)/(num_pixels_z)*(k+1), z_min+(z_max-z_min)/(num_pixels_z)*(k+1)])
-
-
-                    if j+1 == num_pixels_y:
-                        cell_nodes_right_electrode_x.append([x_min+(x_max-x_min)/(num_pixels_x)*i, x_min+(x_max-x_min)/(num_pixels_x)*(i+1), x_min+(x_max-x_min)/(num_pixels_x)*(i+1), x_min+(x_max-x_min)/(num_pixels_x)*i])
-                        cell_nodes_right_electrode_z.append([z_min+(z_max-z_min)/(num_pixels_z)*k, z_min+(z_max-z_min)/(num_pixels_z)*k, z_min+(z_max-z_min)/(num_pixels_z)*(k+1), z_min+(z_max-z_min)/(num_pixels_z)*(k+1)])
-                    
-                    if [x_min+(x_max-x_min)/(num_pixels_x)*i, y_min+(y_max-y_min)/(num_pixels_y)*j, z_min+(z_max-z_min)/(num_pixels_z)*k] not in x_nodes_electrode:
-                        x_nodes_electrode.append([x_min+(x_max-x_min)/(num_pixels_x)*i, y_min+(y_max-y_min)/(num_pixels_y)*j, z_min+(z_max-z_min)/(num_pixels_z)*k])
-                        nodes_id_electrode += 1
-
-                    if [x_min+(x_max-x_min)/(num_pixels_x)*(i+1), y_min+(y_max-y_min)/(num_pixels_y)*(j), z_min+(z_max-z_min)/(num_pixels_z)*k] not in x_nodes_electrode:
-                        x_nodes_electrode.append([x_min+(x_max-x_min)/(num_pixels_x)*(i+1), y_min+(y_max-y_min)/(num_pixels_y)*(j), z_min+(z_max-z_min)/(num_pixels_z)*k])
-                        nodes_id_electrode += 1
-
-                    if [x_min+(x_max-x_min)/(num_pixels_x)*(i+1), y_min+(y_max-y_min)/(num_pixels_y)*(j+1), z_min+(z_max-z_min)/(num_pixels_z)*k] not in x_nodes_electrode:
-                        x_nodes_electrode.append([x_min+(x_max-x_min)/(num_pixels_x)*(i+1), y_min+(y_max-y_min)/(num_pixels_y)*(j+1), z_min+(z_max-z_min)/(num_pixels_z)*k])
-                    # if on right boundary
-                        if j+1 == num_pixels_y:
-                            nodes_id_right_electrode.append(nodes_id_electrode)
-                        nodes_id_electrode += 1
-
-                    if [x_min+(x_max-x_min)/(num_pixels_x)*i, y_min+(y_max-y_min)/(num_pixels_y)*(j+1), z_min+(z_max-z_min)/(num_pixels_z)*k] not in x_nodes_electrode:
-                        x_nodes_electrode.append([x_min+(x_max-x_min)/(num_pixels_x)*i, y_min+(y_max-y_min)/(num_pixels_y)*(j+1), z_min+(z_max-z_min)/(num_pixels_z)*k])
-                    # if on right boundary
-                        if j+1 == num_pixels_y:
-                            nodes_id_right_electrode.append(nodes_id_electrode)
-                        nodes_id_electrode += 1
-
-                    if [x_min+(x_max-x_min)/(num_pixels_x)*i, y_min+(y_max-y_min)/(num_pixels_y)*j, z_min+(z_max-z_min)/(num_pixels_z)*(k+1)] not in x_nodes_electrode:
-                        x_nodes_electrode.append([x_min+(x_max-x_min)/(num_pixels_x)*i, y_min+(y_max-y_min)/(num_pixels_y)*j, z_min+(z_max-z_min)/(num_pixels_z)*(k+1)])
-                        nodes_id_electrode += 1
-
-                    if [x_min+(x_max-x_min)/(num_pixels_x)*(i+1), y_min+(y_max-y_min)/(num_pixels_y)*(j), z_min+(z_max-z_min)/(num_pixels_z)*(k+1)] not in x_nodes_electrode:
-                        x_nodes_electrode.append([x_min+(x_max-x_min)/(num_pixels_x)*(i+1), y_min+(y_max-y_min)/(num_pixels_y)*(j), z_min+(z_max-z_min)/(num_pixels_z)*(k+1)])
-                        nodes_id_electrode += 1
-
-                    if [x_min+(x_max-x_min)/(num_pixels_x)*(i+1), y_min+(y_max-y_min)/(num_pixels_y)*(j+1), z_min+(z_max-z_min)/(num_pixels_z)*(k+1)] not in x_nodes_electrode:
-                        x_nodes_electrode.append([x_min+(x_max-x_min)/(num_pixels_x)*(i+1), y_min+(y_max-y_min)/(num_pixels_y)*(j+1), z_min+(z_max-z_min)/(num_pixels_z)*(k+1)])
-                    # if on right boundary
-                        if j+1 == num_pixels_y:
-                            nodes_id_right_electrode.append(nodes_id_electrode)
-                        nodes_id_electrode += 1
-
-                    if [x_min+(x_max-x_min)/(num_pixels_x)*i, y_min+(y_max-y_min)/(num_pixels_y)*(j+1), z_min+(z_max-z_min)/(num_pixels_z)*(k+1)] not in x_nodes_electrode:
-                        x_nodes_electrode.append([x_min+(x_max-x_min)/(num_pixels_x)*i, y_min+(y_max-y_min)/(num_pixels_y)*(j+1), z_min+(z_max-z_min)/(num_pixels_z)*(k+1)])
-                    # if on right boundary
-                        if j+1 == num_pixels_y:
-                            nodes_id_right_electrode.append(nodes_id_electrode)
-                        nodes_id_electrode += 1
-
-
-                    # get the interface, surface interface
-                    # surface 1
-                    surface_adjacent_pixel_index = np.array([i-1,j,k]) # 3 adjacent pixels
-                    if (i-1)>=0 and img_[tuple(surface_adjacent_pixel_index)] == 0: # electrolyte/electrode interface
-                        cell_nodes_interface_electrode_pore_x.append([x_min+(x_max-x_min)/(num_pixels_x)*i, x_min+(x_max-x_min)/(num_pixels_x)*i, x_min+(x_max-x_min)/(num_pixels_x)*i, x_min+(x_max-x_min)/(num_pixels_x)*i])
-                        cell_nodes_interface_electrode_pore_y.append([y_min+(y_max-y_min)/(num_pixels_y)*j, y_min+(y_max-y_min)/(num_pixels_y)*(j+1), y_min+(y_max-y_min)/(num_pixels_y)*(j+1), y_min+(y_max-y_min)/(num_pixels_y)*(j)])
-                        cell_nodes_interface_electrode_pore_z.append([z_min+(z_max-z_min)/(num_pixels_z)*k, z_min+(z_max-z_min)/(num_pixels_z)*(k), z_min+(z_max-z_min)/(num_pixels_z)*(k+1), z_min+(z_max-z_min)/(num_pixels_z)*(k+1)])
-                        # cell_nodes_interface_electrode_pore_pore_x.append([x_min+(x_max-x_min)/(num_pixels_x)*i, x_min+(x_max-x_min)/(num_pixels_x)*i, x_min+(x_max-x_min)/(num_pixels_x)*i, x_min+(x_max-x_min)/(num_pixels_x)*i])
-                        # cell_nodes_interface_electrode_pore_pore_y.append([y_min+(y_max-y_min)/(num_pixels_y)*j, y_min+(y_max-y_min)/(num_pixels_y)*(j+1), y_min+(y_max-y_min)/(num_pixels_y)*(j+1), y_min+(y_max-y_min)/(num_pixels_y)*(j)])
-                        # cell_nodes_interface_electrode_pore_pore_z.append([z_min+(z_max-z_min)/(num_pixels_z)*k, z_min+(z_max-z_min)/(num_pixels_z)*(k), z_min+(z_max-z_min)/(num_pixels_z)*(k+1), z_min+(z_max-z_min)/(num_pixels_z)*(k+1)])
-                    
-                    
-                    # surface 2
-                    surface_adjacent_pixel_index = np.array([i+1,j,k]) # 3 adjacent pixels
-                    if (i+1)<num_pixels_x and img_[tuple(surface_adjacent_pixel_index)] == 0: # electrolyte/electrode interface
-                        cell_nodes_interface_electrode_pore_x.append([x_min+(x_max-x_min)/(num_pixels_x)*(i+1), x_min+(x_max-x_min)/(num_pixels_x)*(i+1), x_min+(x_max-x_min)/(num_pixels_x)*(i+1), x_min+(x_max-x_min)/(num_pixels_x)*(i+1)])
-                        cell_nodes_interface_electrode_pore_y.append([y_min+(y_max-y_min)/(num_pixels_y)*j, y_min+(y_max-y_min)/(num_pixels_y)*(j+1), y_min+(y_max-y_min)/(num_pixels_y)*(j+1), y_min+(y_max-y_min)/(num_pixels_y)*j])
-                        cell_nodes_interface_electrode_pore_z.append([z_min+(z_max-z_min)/(num_pixels_z)*k, z_min+(z_max-z_min)/(num_pixels_z)*k, z_min+(z_max-z_min)/(num_pixels_z)*(k+1), z_min+(z_max-z_min)/(num_pixels_z)*(k+1)])
-                        # cell_nodes_interface_electrode_pore_pore_x.append([x_min+(x_max-x_min)/(num_pixels_x)*(i+1), x_min+(x_max-x_min)/(num_pixels_x)*(i+1), x_min+(x_max-x_min)/(num_pixels_x)*(i+1), x_min+(x_max-x_min)/(num_pixels_x)*(i+1)])
-                        # cell_nodes_interface_electrode_pore_pore_y.append([y_min+(y_max-y_min)/(num_pixels_y)*j, y_min+(y_max-y_min)/(num_pixels_y)*(j), y_min+(y_max-y_min)/(num_pixels_y)*(j+1), y_min+(y_max-y_min)/(num_pixels_y)*(j+1)])
-                        # cell_nodes_interface_electrode_pore_pore_z.append([z_min+(z_max-z_min)/(num_pixels_z)*k, z_min+(z_max-z_min)/(num_pixels_z)*(k+1), z_min+(z_max-z_min)/(num_pixels_z)*(k+1), z_min+(z_max-z_min)/(num_pixels_z)*(k)])
-                    
-                    
-                    # surface 3
-                    surface_adjacent_pixel_index = np.array([i,j-1,k]) # 3 adjacent pixels
-                    if (j-1)>=0 and img_[tuple(surface_adjacent_pixel_index)] == 0: # electrolyte/electrode interface
-                        cell_nodes_interface_electrode_pore_x.append([x_min+(x_max-x_min)/(num_pixels_x)*i, x_min+(x_max-x_min)/(num_pixels_x)*(i+1), x_min+(x_max-x_min)/(num_pixels_x)*(i+1), x_min+(x_max-x_min)/(num_pixels_x)*i])
-                        cell_nodes_interface_electrode_pore_y.append([y_min+(y_max-y_min)/(num_pixels_y)*j, y_min+(y_max-y_min)/(num_pixels_y)*(j), y_min+(y_max-y_min)/(num_pixels_y)*(j), y_min+(y_max-y_min)/(num_pixels_y)*j])
-                        cell_nodes_interface_electrode_pore_z.append([z_min+(z_max-z_min)/(num_pixels_z)*k, z_min+(z_max-z_min)/(num_pixels_z)*k, z_min+(z_max-z_min)/(num_pixels_z)*(k+1), z_min+(z_max-z_min)/(num_pixels_z)*(k+1)])
-                        # cell_nodes_interface_electrode_pore_pore_x.append([x_min+(x_max-x_min)/(num_pixels_x)*i, x_min+(x_max-x_min)/(num_pixels_x)*(i), x_min+(x_max-x_min)/(num_pixels_x)*(i+1), x_min+(x_max-x_min)/(num_pixels_x)*(i+1)])
-                        # cell_nodes_interface_electrode_pore_pore_y.append([y_min+(y_max-y_min)/(num_pixels_y)*j, y_min+(y_max-y_min)/(num_pixels_y)*(j), y_min+(y_max-y_min)/(num_pixels_y)*(j), y_min+(y_max-y_min)/(num_pixels_y)*j])
-                        # cell_nodes_interface_electrode_pore_pore_z.append([z_min+(z_max-z_min)/(num_pixels_z)*k, z_min+(z_max-z_min)/(num_pixels_z)*(k+1), z_min+(z_max-z_min)/(num_pixels_z)*(k+1), z_min+(z_max-z_min)/(num_pixels_z)*(k)])
-                    
-                    
-                    # surface 4
-                    surface_adjacent_pixel_index = np.array([i,j+1,k]) # 3 adjacent pixels
-                    if (j+1)<num_pixels_x and img_[tuple(surface_adjacent_pixel_index)] == 0: # electrolyte/electrode interface
-                        cell_nodes_interface_electrode_pore_x.append([x_min+(x_max-x_min)/(num_pixels_x)*(i), x_min+(x_max-x_min)/(num_pixels_x)*(i+1), x_min+(x_max-x_min)/(num_pixels_x)*(i+1), x_min+(x_max-x_min)/(num_pixels_x)*(i)])
-                        cell_nodes_interface_electrode_pore_y.append([y_min+(y_max-y_min)/(num_pixels_y)*(j+1), y_min+(y_max-y_min)/(num_pixels_y)*(j+1), y_min+(y_max-y_min)/(num_pixels_y)*(j+1), y_min+(y_max-y_min)/(num_pixels_y)*(j+1)])
-                        cell_nodes_interface_electrode_pore_z.append([z_min+(z_max-z_min)/(num_pixels_z)*k, z_min+(z_max-z_min)/(num_pixels_z)*k, z_min+(z_max-z_min)/(num_pixels_z)*(k+1), z_min+(z_max-z_min)/(num_pixels_z)*(k+1)])
-                        # cell_nodes_interface_electrode_pore_pore_x.append([x_min+(x_max-x_min)/(num_pixels_x)*(i+1), x_min+(x_max-x_min)/(num_pixels_x)*(i+1), x_min+(x_max-x_min)/(num_pixels_x)*(i+1), x_min+(x_max-x_min)/(num_pixels_x)*(i)])
-                        # cell_nodes_interface_electrode_pore_pore_y.append([y_min+(y_max-y_min)/(num_pixels_y)*(j+1), y_min+(y_max-y_min)/(num_pixels_y)*(j+1), y_min+(y_max-y_min)/(num_pixels_y)*(j+1), y_min+(y_max-y_min)/(num_pixels_y)*(j+1)])
-                        # cell_nodes_interface_electrode_pore_pore_z.append([z_min+(z_max-z_min)/(num_pixels_z)*k, z_min+(z_max-z_min)/(num_pixels_z)*(k+1), z_min+(z_max-z_min)/(num_pixels_z)*(k+1), z_min+(z_max-z_min)/(num_pixels_z)*(k)])
-                    
-                    
-                    # surface 5
-                    surface_adjacent_pixel_index = np.array([i,j,k-1]) # 3 adjacent pixels
-                    if (k-1)>=0 and img_[tuple(surface_adjacent_pixel_index)] == 0: # electrolyte/electrode interface
-                        cell_nodes_interface_electrode_pore_x.append([x_min+(x_max-x_min)/(num_pixels_x)*(i+1), x_min+(x_max-x_min)/(num_pixels_x)*(i+1), x_min+(x_max-x_min)/(num_pixels_x)*(i), x_min+(x_max-x_min)/(num_pixels_x)*(i)])
-                        cell_nodes_interface_electrode_pore_y.append([y_min+(y_max-y_min)/(num_pixels_y)*j, y_min+(y_max-y_min)/(num_pixels_y)*(j+1), y_min+(y_max-y_min)/(num_pixels_y)*(j+1), y_min+(y_max-y_min)/(num_pixels_y)*(j)])
-                        cell_nodes_interface_electrode_pore_z.append([z_min+(z_max-z_min)/(num_pixels_z)*k, z_min+(z_max-z_min)/(num_pixels_z)*k, z_min+(z_max-z_min)/(num_pixels_z)*(k), z_min+(z_max-z_min)/(num_pixels_z)*(k)])
-                        # cell_nodes_interface_electrode_pore_pore_x.append([x_min+(x_max-x_min)/(num_pixels_x)*(i+1), x_min+(x_max-x_min)/(num_pixels_x)*(i+1), x_min+(x_max-x_min)/(num_pixels_x)*(i), x_min+(x_max-x_min)/(num_pixels_x)*i])
-                        # cell_nodes_interface_electrode_pore_pore_y.append([y_min+(y_max-y_min)/(num_pixels_y)*j, y_min+(y_max-y_min)/(num_pixels_y)*(j+1), y_min+(y_max-y_min)/(num_pixels_y)*(j+1), y_min+(y_max-y_min)/(num_pixels_y)*(j)])
-                        # cell_nodes_interface_electrode_pore_pore_z.append([z_min+(z_max-z_min)/(num_pixels_z)*k, z_min+(z_max-z_min)/(num_pixels_z)*k, z_min+(z_max-z_min)/(num_pixels_z)*(k), z_min+(z_max-z_min)/(num_pixels_z)*(k)])
-                    
-                    
-                    # surface 6
-                    surface_adjacent_pixel_index = np.array([i,j,k+1]) # 3 adjacent pixels
-                    if (k+1)<num_pixels_x and img_[tuple(surface_adjacent_pixel_index)] == 0: # electrolyte/electrode interface
-                        cell_nodes_interface_electrode_pore_x.append([x_min+(x_max-x_min)/(num_pixels_x)*(i+1), x_min+(x_max-x_min)/(num_pixels_x)*(i+1), x_min+(x_max-x_min)/(num_pixels_x)*(i), x_min+(x_max-x_min)/(num_pixels_x)*(i)])
-                        cell_nodes_interface_electrode_pore_y.append([y_min+(y_max-y_min)/(num_pixels_y)*(j), y_min+(y_max-y_min)/(num_pixels_y)*(j+1), y_min+(y_max-y_min)/(num_pixels_y)*(j+1), y_min+(y_max-y_min)/(num_pixels_y)*(j)])
-                        cell_nodes_interface_electrode_pore_z.append([z_min+(z_max-z_min)/(num_pixels_z)*(k+1), z_min+(z_max-z_min)/(num_pixels_z)*(k+1), z_min+(z_max-z_min)/(num_pixels_z)*(k+1), z_min+(z_max-z_min)/(num_pixels_z)*(k+1)])
-                        # cell_nodes_interface_electrode_pore_pore_x.append([x_min+(x_max-x_min)/(num_pixels_x)*(i+1), x_min+(x_max-x_min)/(num_pixels_x)*(i), x_min+(x_max-x_min)/(num_pixels_x)*(i), x_min+(x_max-x_min)/(num_pixels_x)*(i+1)])
-                        # cell_nodes_interface_electrode_pore_pore_y.append([y_min+(y_max-y_min)/(num_pixels_y)*(j), y_min+(y_max-y_min)/(num_pixels_y)*(j), y_min+(y_max-y_min)/(num_pixels_y)*(j+1), y_min+(y_max-y_min)/(num_pixels_y)*(j+1)])
-                        # cell_nodes_interface_electrode_pore_pore_z.append([z_min+(z_max-z_min)/(num_pixels_z)*(k+1), z_min+(z_max-z_min)/(num_pixels_z)*(k+1), z_min+(z_max-z_min)/(num_pixels_z)*(k+1), z_min+(z_max-z_min)/(num_pixels_z)*(k+1)])
-                   
-                
-                # if in pore domain
-                if img_[i, j, k] == 0:
-                     
-                     
-                    cell_nodes_pore_x.append([x_min+(x_max-x_min)/(num_pixels_x)*(i), x_min+(x_max-x_min)/(num_pixels_x)*(i+1), x_min+(x_max-x_min)/(num_pixels_x)*(i+1), x_min+(x_max-x_min)/(num_pixels_x)*i, \
-                                                     x_min+(x_max-x_min)/(num_pixels_x)*(i), x_min+(x_max-x_min)/(num_pixels_x)*(i+1), x_min+(x_max-x_min)/(num_pixels_x)*(i+1), x_min+(x_max-x_min)/(num_pixels_x)*i])
-                    
-                    cell_nodes_pore_y.append([y_min+(y_max-y_min)/(num_pixels_y)*j, y_min+(y_max-y_min)/(num_pixels_y)*(j), y_min+(y_max-y_min)/(num_pixels_y)*(j+1), y_min+(y_max-y_min)/(num_pixels_y)*(j+1), \
-                                                     y_min+(y_max-y_min)/(num_pixels_y)*j, y_min+(y_max-y_min)/(num_pixels_y)*(j), y_min+(y_max-y_min)/(num_pixels_y)*(j+1), y_min+(y_max-y_min)/(num_pixels_y)*(j+1)])
-
-                    cell_nodes_pore_z.append([z_min+(z_max-z_min)/(num_pixels_z)*k, z_min+(z_max-z_min)/(num_pixels_z)*k, z_min+(z_max-z_min)/(num_pixels_z)*k, z_min+(z_max-z_min)/(num_pixels_z)*k, \
-                                                     z_min+(z_max-z_min)/(num_pixels_z)*(k+1), z_min+(z_max-z_min)/(num_pixels_z)*(k+1), z_min+(z_max-z_min)/(num_pixels_z)*(k+1), z_min+(z_max-z_min)/(num_pixels_z)*(k+1)])
-
-
-                    if j+1 == num_pixels_y:
-                        cell_nodes_right_pore_x.append([x_min+(x_max-x_min)/(num_pixels_x)*i, x_min+(x_max-x_min)/(num_pixels_x)*(i+1), x_min+(x_max-x_min)/(num_pixels_x)*(i+1), x_min+(x_max-x_min)/(num_pixels_x)*i])
-                        cell_nodes_right_pore_z.append([z_min+(z_max-z_min)/(num_pixels_z)*k, z_min+(z_max-z_min)/(num_pixels_z)*k, z_min+(z_max-z_min)/(num_pixels_z)*(k+1), z_min+(z_max-z_min)/(num_pixels_z)*(k+1)])
-                    
-                    if [x_min+(x_max-x_min)/(num_pixels_x)*i, y_min+(y_max-y_min)/(num_pixels_y)*j, z_min+(z_max-z_min)/(num_pixels_z)*k] not in x_nodes_pore:
-                        x_nodes_pore.append([x_min+(x_max-x_min)/(num_pixels_x)*i, y_min+(y_max-y_min)/(num_pixels_y)*j, z_min+(z_max-z_min)/(num_pixels_z)*k])
-                        nodes_id_pore += 1
-
-                    if [x_min+(x_max-x_min)/(num_pixels_x)*(i+1), y_min+(y_max-y_min)/(num_pixels_y)*(j), z_min+(z_max-z_min)/(num_pixels_z)*k] not in x_nodes_pore:
-                        x_nodes_pore.append([x_min+(x_max-x_min)/(num_pixels_x)*(i+1), y_min+(y_max-y_min)/(num_pixels_y)*(j), z_min+(z_max-z_min)/(num_pixels_z)*k])
-                        nodes_id_pore += 1
-
-                    if [x_min+(x_max-x_min)/(num_pixels_x)*(i+1), y_min+(y_max-y_min)/(num_pixels_y)*(j+1), z_min+(z_max-z_min)/(num_pixels_z)*k] not in x_nodes_pore:
-                        x_nodes_pore.append([x_min+(x_max-x_min)/(num_pixels_x)*(i+1), y_min+(y_max-y_min)/(num_pixels_y)*(j+1), z_min+(z_max-z_min)/(num_pixels_z)*k])
-                    # if on right boundary
-                        if j+1 == num_pixels_y:
-                            nodes_id_right_pore.append(nodes_id_pore)
-                        nodes_id_pore += 1
-
-                    if [x_min+(x_max-x_min)/(num_pixels_x)*i, y_min+(y_max-y_min)/(num_pixels_y)*(j+1), z_min+(z_max-z_min)/(num_pixels_z)*k] not in x_nodes_pore:
-                        x_nodes_pore.append([x_min+(x_max-x_min)/(num_pixels_x)*i, y_min+(y_max-y_min)/(num_pixels_y)*(j+1), z_min+(z_max-z_min)/(num_pixels_z)*k])
-                    # if on right boundary
-                        if j+1 == num_pixels_y:
-                            nodes_id_right_pore.append(nodes_id_pore)
-                        nodes_id_pore += 1
-
-                    if [x_min+(x_max-x_min)/(num_pixels_x)*i, y_min+(y_max-y_min)/(num_pixels_y)*j, z_min+(z_max-z_min)/(num_pixels_z)*(k+1)] not in x_nodes_pore:
-                        x_nodes_pore.append([x_min+(x_max-x_min)/(num_pixels_x)*i, y_min+(y_max-y_min)/(num_pixels_y)*j, z_min+(z_max-z_min)/(num_pixels_z)*(k+1)])
-                        nodes_id_pore += 1
-
-                    if [x_min+(x_max-x_min)/(num_pixels_x)*(i+1), y_min+(y_max-y_min)/(num_pixels_y)*(j), z_min+(z_max-z_min)/(num_pixels_z)*(k+1)] not in x_nodes_pore:
-                        x_nodes_pore.append([x_min+(x_max-x_min)/(num_pixels_x)*(i+1), y_min+(y_max-y_min)/(num_pixels_y)*(j), z_min+(z_max-z_min)/(num_pixels_z)*(k+1)])
-                        nodes_id_pore += 1
-
-                    if [x_min+(x_max-x_min)/(num_pixels_x)*(i+1), y_min+(y_max-y_min)/(num_pixels_y)*(j+1), z_min+(z_max-z_min)/(num_pixels_z)*(k+1)] not in x_nodes_pore:
-                        x_nodes_pore.append([x_min+(x_max-x_min)/(num_pixels_x)*(i+1), y_min+(y_max-y_min)/(num_pixels_y)*(j+1), z_min+(z_max-z_min)/(num_pixels_z)*(k+1)])
-                    # if on right boundary
-                        if j+1 == num_pixels_y:
-                            nodes_id_right_pore.append(nodes_id_pore)
-                        nodes_id_pore += 1
-
-                    if [x_min+(x_max-x_min)/(num_pixels_x)*i, y_min+(y_max-y_min)/(num_pixels_y)*(j+1), z_min+(z_max-z_min)/(num_pixels_z)*(k+1)] not in x_nodes_pore:
-                        x_nodes_pore.append([x_min+(x_max-x_min)/(num_pixels_x)*i, y_min+(y_max-y_min)/(num_pixels_y)*(j+1), z_min+(z_max-z_min)/(num_pixels_z)*(k+1)])
-                    # if on right boundary
-                        if j+1 == num_pixels_y:
-                            nodes_id_right_pore.append(nodes_id_pore)
-                        nodes_id_pore += 1
-    return x_nodes_mechanical, x_nodes_electrolyte, x_nodes_electrode, x_nodes_pore, segments_source, cell_nodes_fixed_x, cell_nodes_fixed_z, nodes_id_left_electrolyte, nodes_id_right_electrode, nodes_id_right_pore, cell_nodes_electrolyte_x, cell_nodes_electrolyte_y, cell_nodes_electrolyte_z, cell_nodes_electrode_x, cell_nodes_electrode_y, cell_nodes_electrode_z,cell_nodes_pore_x,cell_nodes_pore_y,cell_nodes_pore_z, cell_nodes_left_electrolyte_x, cell_nodes_left_electrolyte_z, cell_nodes_right_electrode_x, cell_nodes_right_electrode_z, cell_nodes_right_pore_x, cell_nodes_right_pore_z,\
-    cell_nodes_interface_electrode_electrolyte_x,cell_nodes_interface_electrode_electrolyte_y,cell_nodes_interface_electrode_electrolyte_z,\
-    cell_nodes_interface_electrode_pore_x, cell_nodes_interface_electrode_pore_y, cell_nodes_interface_electrode_pore_z
     
-
-
-
-# get all gauss points in domain, 3d domain
-def x_G_and_def_J_time_weight_3d_fuelcell_domain(cell_nodes_x,cell_nodes_y,cell_nodes_z,x_G_domain,weight_G_domain):
-    x_G = []      # xy coordinates of gauss points in domain   
-    det_J_time_weight = []    # determin of jacobian
-    for i in range(np.shape(cell_nodes_x)[0]):
-        # in the mnnm (n^th row, m^th column) gauss integration domain, calculate the xy coordinates of each domain vertex
-        x_ver_mn = cell_nodes_x[i, :]
-        y_ver_mn = cell_nodes_y[i, :]
-        z_ver_mn = cell_nodes_z[i, :]
-        # calculate the cy coordinates of gauss points in current integration domain
-        for k in range(len(x_G_domain)):
-            
-            x_G_mn_k = 1.0/8.0*np.dot(np.array([(1+x_G_domain[k][0])*(1-x_G_domain[k][1])*(1-x_G_domain[k][2]), (1+x_G_domain[k][0])*(1+x_G_domain[k][1])*(1-x_G_domain[k][2]), \
-                                    (1-x_G_domain[k][0])*(1+x_G_domain[k][1])*(1-x_G_domain[k][2]), (1-x_G_domain[k][0])*(1-x_G_domain[k][1])*(1-x_G_domain[k][2]), \
-                                        (1+x_G_domain[k][0])*(1-x_G_domain[k][1])*(1+x_G_domain[k][2]), (1+x_G_domain[k][0])*(1+x_G_domain[k][1])*(1+x_G_domain[k][2]), \
-                                            (1-x_G_domain[k][0])*(1+x_G_domain[k][1])*(1+x_G_domain[k][2]), (1-x_G_domain[k][0])*(1-x_G_domain[k][1])*(1+x_G_domain[k][2])],dtype=np.float64), np.transpose(x_ver_mn))
-            y_G_mn_k = 1.0/8.0*np.dot(np.array([(1+x_G_domain[k][0])*(1-x_G_domain[k][1])*(1-x_G_domain[k][2]), (1+x_G_domain[k][0])*(1+x_G_domain[k][1])*(1-x_G_domain[k][2]), \
-                                    (1-x_G_domain[k][0])*(1+x_G_domain[k][1])*(1-x_G_domain[k][2]), (1-x_G_domain[k][0])*(1-x_G_domain[k][1])*(1-x_G_domain[k][2]), \
-                                        (1+x_G_domain[k][0])*(1-x_G_domain[k][1])*(1+x_G_domain[k][2]), (1+x_G_domain[k][0])*(1+x_G_domain[k][1])*(1+x_G_domain[k][2]), \
-                                            (1-x_G_domain[k][0])*(1+x_G_domain[k][1])*(1+x_G_domain[k][2]), (1-x_G_domain[k][0])*(1-x_G_domain[k][1])*(1+x_G_domain[k][2])],dtype=np.float64), np.transpose(y_ver_mn))
-            z_G_mn_k = 1.0/8.0*np.dot(np.array([(1+x_G_domain[k][0])*(1-x_G_domain[k][1])*(1-x_G_domain[k][2]), (1+x_G_domain[k][0])*(1+x_G_domain[k][1])*(1-x_G_domain[k][2]), \
-                                    (1-x_G_domain[k][0])*(1+x_G_domain[k][1])*(1-x_G_domain[k][2]), (1-x_G_domain[k][0])*(1-x_G_domain[k][1])*(1-x_G_domain[k][2]), \
-                                        (1+x_G_domain[k][0])*(1-x_G_domain[k][1])*(1+x_G_domain[k][2]), (1+x_G_domain[k][0])*(1+x_G_domain[k][1])*(1+x_G_domain[k][2]), \
-                                            (1-x_G_domain[k][0])*(1+x_G_domain[k][1])*(1+x_G_domain[k][2]), (1-x_G_domain[k][0])*(1-x_G_domain[k][1])*(1+x_G_domain[k][2])],dtype=np.float64), np.transpose(z_ver_mn))
-            
-            x_G.append([x_G_mn_k, y_G_mn_k, z_G_mn_k])
-
-            J11 = 1.0/8.0*np.dot(np.array([(1-x_G_domain[k][1])*(1-x_G_domain[k][2]), (1+x_G_domain[k][1])*(1-x_G_domain[k][2]), \
-                                    -(1+x_G_domain[k][1])*(1-x_G_domain[k][2]), -(1-x_G_domain[k][1])*(1-x_G_domain[k][2]), \
-                                        (1-x_G_domain[k][1])*(1+x_G_domain[k][2]), (1+x_G_domain[k][1])*(1+x_G_domain[k][2]), \
-                                            -(1+x_G_domain[k][1])*(1+x_G_domain[k][2]), -(1-x_G_domain[k][1])*(1+x_G_domain[k][2])],dtype=np.float64), np.transpose(x_ver_mn))
-            J12 = 1.0/8.0*np.dot(np.array([-(1+x_G_domain[k][0])*(1-x_G_domain[k][2]), (1+x_G_domain[k][0])*(1-x_G_domain[k][2]), \
-                                    (1-x_G_domain[k][0])*(1-x_G_domain[k][2]), -(1-x_G_domain[k][0])*(1-x_G_domain[k][2]), \
-                                        -(1+x_G_domain[k][0])*(1+x_G_domain[k][2]), (1+x_G_domain[k][0])*(1+x_G_domain[k][2]), \
-                                            (1-x_G_domain[k][0])*(1+x_G_domain[k][2]), -(1-x_G_domain[k][0])*(1+x_G_domain[k][2])],dtype=np.float64), np.transpose(x_ver_mn))
-            J13 = 1.0/8.0*np.dot(np.array([-(1+x_G_domain[k][0])*(1-x_G_domain[k][1]), -(1+x_G_domain[k][0])*(1+x_G_domain[k][1]), \
-                                    -(1-x_G_domain[k][0])*(1+x_G_domain[k][1]), -(1-x_G_domain[k][0])*(1-x_G_domain[k][1]), \
-                                        (1+x_G_domain[k][0])*(1-x_G_domain[k][1]), (1+x_G_domain[k][0])*(1+x_G_domain[k][1]), \
-                                            (1-x_G_domain[k][0])*(1+x_G_domain[k][1]), (1-x_G_domain[k][0])*(1-x_G_domain[k][1])],dtype=np.float64), np.transpose(x_ver_mn))
-            J21 = 1.0/8.0*np.dot(np.array([(1-x_G_domain[k][1])*(1-x_G_domain[k][2]), (1+x_G_domain[k][1])*(1-x_G_domain[k][2]), \
-                                    -(1+x_G_domain[k][1])*(1-x_G_domain[k][2]), -(1-x_G_domain[k][1])*(1-x_G_domain[k][2]), \
-                                        (1-x_G_domain[k][1])*(1+x_G_domain[k][2]), (1+x_G_domain[k][1])*(1+x_G_domain[k][2]), \
-                                            -(1+x_G_domain[k][1])*(1+x_G_domain[k][2]), -(1-x_G_domain[k][1])*(1+x_G_domain[k][2])],dtype=np.float64), np.transpose(y_ver_mn))
-            J22 = 1.0/8.0*np.dot(np.array([-(1+x_G_domain[k][0])*(1-x_G_domain[k][2]), (1+x_G_domain[k][0])*(1-x_G_domain[k][2]), \
-                                    (1-x_G_domain[k][0])*(1-x_G_domain[k][2]), -(1-x_G_domain[k][0])*(1-x_G_domain[k][2]), \
-                                        -(1+x_G_domain[k][0])*(1+x_G_domain[k][2]), (1+x_G_domain[k][0])*(1+x_G_domain[k][2]), \
-                                            (1-x_G_domain[k][0])*(1+x_G_domain[k][2]), -(1-x_G_domain[k][0])*(1+x_G_domain[k][2])],dtype=np.float64), np.transpose(y_ver_mn))
-            J23 = 1.0/8.0*np.dot(np.array([-(1+x_G_domain[k][0])*(1-x_G_domain[k][1]), -(1+x_G_domain[k][0])*(1+x_G_domain[k][1]), \
-                                    -(1-x_G_domain[k][0])*(1+x_G_domain[k][1]), -(1-x_G_domain[k][0])*(1-x_G_domain[k][1]), \
-                                        (1+x_G_domain[k][0])*(1-x_G_domain[k][1]), (1+x_G_domain[k][0])*(1+x_G_domain[k][1]), \
-                                            (1-x_G_domain[k][0])*(1+x_G_domain[k][1]), (1-x_G_domain[k][0])*(1-x_G_domain[k][1])],dtype=np.float64), np.transpose(y_ver_mn))
-            J31 = 1.0/8.0*np.dot(np.array([(1-x_G_domain[k][1])*(1-x_G_domain[k][2]), (1+x_G_domain[k][1])*(1-x_G_domain[k][2]), \
-                                    -(1+x_G_domain[k][1])*(1-x_G_domain[k][2]), -(1-x_G_domain[k][1])*(1-x_G_domain[k][2]), \
-                                        (1-x_G_domain[k][1])*(1+x_G_domain[k][2]), (1+x_G_domain[k][1])*(1+x_G_domain[k][2]), \
-                                            -(1+x_G_domain[k][1])*(1+x_G_domain[k][2]), -(1-x_G_domain[k][1])*(1+x_G_domain[k][2])],dtype=np.float64), np.transpose(z_ver_mn))
-            J32 = 1.0/8.0*np.dot(np.array([-(1+x_G_domain[k][0])*(1-x_G_domain[k][2]), (1+x_G_domain[k][0])*(1-x_G_domain[k][2]), \
-                                    (1-x_G_domain[k][0])*(1-x_G_domain[k][2]), -(1-x_G_domain[k][0])*(1-x_G_domain[k][2]), \
-                                        -(1+x_G_domain[k][0])*(1+x_G_domain[k][2]), (1+x_G_domain[k][0])*(1+x_G_domain[k][2]), \
-                                            (1-x_G_domain[k][0])*(1+x_G_domain[k][2]), -(1-x_G_domain[k][0])*(1+x_G_domain[k][2])],dtype=np.float64), np.transpose(z_ver_mn))
-            J33 = 1.0/8.0*np.dot(np.array([-(1+x_G_domain[k][0])*(1-x_G_domain[k][1]), -(1+x_G_domain[k][0])*(1+x_G_domain[k][1]), \
-                                    -(1-x_G_domain[k][0])*(1+x_G_domain[k][1]), -(1-x_G_domain[k][0])*(1-x_G_domain[k][1]), \
-                                        (1+x_G_domain[k][0])*(1-x_G_domain[k][1]), (1+x_G_domain[k][0])*(1+x_G_domain[k][1]), \
-                                            (1-x_G_domain[k][0])*(1+x_G_domain[k][1]), (1-x_G_domain[k][0])*(1-x_G_domain[k][1])],dtype=np.float64), np.transpose(z_ver_mn))
-
-            det_J_time_weight.append(np.linalg.det(np.array([[J11, J12, J13],[J21,J22,J23],[J31,J32,J33]]))*weight_G_domain[k])
+    segments_source_set = set()  # Use set to avoid duplicates
+    
+    # Get indices of all pixels for each phase - vectorized
+    electrolyte_pixels = np.argwhere(img_ == 2)
+    electrode_pixels = np.argwhere(img_ == 1)
+    pore_pixels = np.argwhere(img_ == 0)
+    non_zero_pixels = np.argwhere(img_ != 0)
+    
+    # Process mechanical nodes (all non-zero pixels) - vectorized
+    for idx in non_zero_pixels:
+        i, j, k = idx
+        # 8 corners of the voxel
+        corners = [
+            (i, j, k), (i+1, j, k), (i+1, j+1, k), (i, j+1, k),
+            (i, j, k+1), (i+1, j, k+1), (i+1, j+1, k+1), (i, j+1, k+1)
+        ]
+        for corner in corners:
+            ci, cj, ck = corner
+            node = (x_coords[ci], y_coords[cj], z_coords[ck])
+            nodes_mechanical_set.add(node)
+    
+    # Process fixed nodes (j==0 and k==0) - vectorized
+    fixed_mask = (non_zero_pixels[:, 1] == 0) & (non_zero_pixels[:, 2] == 0)
+    fixed_pixels = non_zero_pixels[fixed_mask]
+    for idx in fixed_pixels:
+        i = idx[0]
+        cell_nodes_fixed_x.append([x_coords[i], x_coords[i+1], x_coords[i+1], x_coords[i]])
+        cell_nodes_fixed_z.append([z_coords[0], z_coords[0], z_coords[1], z_coords[1]])
+    
+    # Edge adjacency patterns for triple junction detection (12 edges of a voxel)
+    edge_patterns = [
+        # Bottom face (z=k)
+        (np.array([[0,-1,0],[0,-1,-1],[0,0,-1]]), [(0,0,0), (1,0,0)]),  # edge 1
+        (np.array([[1,0,0],[1,0,-1],[0,0,-1]]), [(1,0,0), (1,1,0)]),     # edge 2
+        (np.array([[0,1,0],[0,1,-1],[0,0,-1]]), [(0,1,0), (1,1,0)]),     # edge 3
+        (np.array([[-1,0,0],[-1,0,-1],[0,0,-1]]), [(0,0,0), (0,1,0)]),   # edge 4
+        # Top face (z=k+1)
+        (np.array([[0,-1,0],[0,-1,1],[0,0,1]]), [(0,0,1), (1,0,1)]),     # edge 5
+        (np.array([[1,0,0],[1,0,1],[0,0,1]]), [(1,0,1), (1,1,1)]),       # edge 6
+        (np.array([[0,1,0],[0,1,1],[0,0,1]]), [(0,1,1), (1,1,1)]),       # edge 7
+        (np.array([[-1,0,0],[-1,0,1],[0,0,1]]), [(0,0,1), (0,1,1)]),     # edge 8
+        # Vertical edges
+        (np.array([[1,-1,0],[0,-1,0],[1,0,0]]), [(1,0,0), (1,0,1)]),     # edge 9
+        (np.array([[1,0,0],[0,1,0],[1,1,0]]), [(1,1,0), (1,1,1)]),       # edge 10
+        (np.array([[0,1,0],[-1,0,0],[-1,1,0]]), [(0,1,0), (0,1,1)]),     # edge 11
+        (np.array([[0,-1,0],[-1,0,0],[-1,-1,0]]), [(0,0,0), (0,0,1)])    # edge 12
+    ]
+    
+    # Process electrolyte pixels
+    for idx in electrolyte_pixels:
+        i, j, k = idx
         
+        # Add cell nodes
+        x_cell = [x_coords[i], x_coords[i+1], x_coords[i+1], x_coords[i],
+                  x_coords[i], x_coords[i+1], x_coords[i+1], x_coords[i]]
+        y_cell = [y_coords[j], y_coords[j], y_coords[j+1], y_coords[j+1],
+                  y_coords[j], y_coords[j], y_coords[j+1], y_coords[j+1]]
+        z_cell = [z_coords[k], z_coords[k], z_coords[k], z_coords[k],
+                  z_coords[k+1], z_coords[k+1], z_coords[k+1], z_coords[k+1]]
+        
+        cell_nodes_electrolyte_x.append(x_cell)
+        cell_nodes_electrolyte_y.append(y_cell)
+        cell_nodes_electrolyte_z.append(z_cell)
+        
+        # Boundary cells
+        if j == 0:
+            cell_nodes_left_electrolyte_x.append([x_coords[i], x_coords[i+1], x_coords[i+1], x_coords[i]])
+            cell_nodes_left_electrolyte_z.append([z_coords[k], z_coords[k], z_coords[k+1], z_coords[k+1]])
+        
+        # Check triple junctions for each edge
+        for edge_adj, edge_coords in edge_patterns:
+            adjacent_pixel_index = np.array([[i, j, k]]) + edge_adj
+            
+            # Filter valid indices
+            filter_mask = (
+                np.all(adjacent_pixel_index >= 0, axis=1) &
+                (adjacent_pixel_index[:, 0] < num_pixels_x) &
+                (adjacent_pixel_index[:, 1] < num_pixels_y) &
+                (adjacent_pixel_index[:, 2] < num_pixels_z)
+            )
+            
+            if np.any(filter_mask):
+                filtered_adjacent = adjacent_pixel_index[filter_mask]
+                unique_ids = np.unique(img_[tuple(filtered_adjacent.T)])
+                
+                # Triple junction: electrolyte (2) with both pore (0) and electrode (1)
+                if (0 in unique_ids and 1 in unique_ids):
+                    # Calculate edge endpoints
+                    c1, c2 = edge_coords
+                    segment = (x_coords[i+c1[0]], y_coords[j+c1[1]], z_coords[k+c1[2]],
+                              x_coords[i+c2[0]], y_coords[j+c2[1]], z_coords[k+c2[2]])
+                    segments_source_set.add(segment)
+        
+        # Add nodes
+        corners = [
+            (i, j, k), (i+1, j, k), (i+1, j+1, k), (i, j+1, k),
+            (i, j, k+1), (i+1, j, k+1), (i+1, j+1, k+1), (i, j+1, k+1)
+        ]
+        for corner in corners:
+            ci, cj, ck = corner
+            nodes_electrolyte_set.add((x_coords[ci], y_coords[cj], z_coords[ck]))
+        
+        # Check interface with electrode (6 faces)
+        face_checks = [
+            ((-1, 0, 0), [(i, j, k), (i, j+1, k), (i, j+1, k+1), (i, j, k+1)]),       # -x face
+            ((1, 0, 0), [(i+1, j, k), (i+1, j+1, k), (i+1, j+1, k+1), (i+1, j, k+1)]), # +x face
+            ((0, -1, 0), [(i, j, k), (i+1, j, k), (i+1, j, k+1), (i, j, k+1)]),       # -y face
+            ((0, 1, 0), [(i, j+1, k), (i+1, j+1, k), (i+1, j+1, k+1), (i, j+1, k+1)]), # +y face
+            ((0, 0, -1), [(i+1, j, k), (i+1, j+1, k), (i, j+1, k), (i, j, k)]),       # -z face
+            ((0, 0, 1), [(i+1, j, k+1), (i+1, j+1, k+1), (i, j+1, k+1), (i, j, k+1)])  # +z face
+        ]
+        
+        for offset, face_corners in face_checks:
+            ni, nj, nk = i + offset[0], j + offset[1], k + offset[2]
+            if 0 <= ni < num_pixels_x and 0 <= nj < num_pixels_y and 0 <= nk < num_pixels_z:
+                if img_[ni, nj, nk] == 1:  # Adjacent to electrode
+                    face_x = [x_coords[fc[0]] for fc in face_corners]
+                    face_y = [y_coords[fc[1]] for fc in face_corners]
+                    face_z = [z_coords[fc[2]] for fc in face_corners]
+                    cell_nodes_interface_electrode_electrolyte_x.append(face_x)
+                    cell_nodes_interface_electrode_electrolyte_y.append(face_y)
+                    cell_nodes_interface_electrode_electrolyte_z.append(face_z)
+    
+    # Process electrode pixels
+    for idx in electrode_pixels:
+        i, j, k = idx
+        
+        # Add cell nodes
+        x_cell = [x_coords[i], x_coords[i+1], x_coords[i+1], x_coords[i],
+                  x_coords[i], x_coords[i+1], x_coords[i+1], x_coords[i]]
+        y_cell = [y_coords[j], y_coords[j], y_coords[j+1], y_coords[j+1],
+                  y_coords[j], y_coords[j], y_coords[j+1], y_coords[j+1]]
+        z_cell = [z_coords[k], z_coords[k], z_coords[k], z_coords[k],
+                  z_coords[k+1], z_coords[k+1], z_coords[k+1], z_coords[k+1]]
+        
+        cell_nodes_electrode_x.append(x_cell)
+        cell_nodes_electrode_y.append(y_cell)
+        cell_nodes_electrode_z.append(z_cell)
+        
+        # Right boundary cells
+        if j + 1 == num_pixels_y:
+            cell_nodes_right_electrode_x.append([x_coords[i], x_coords[i+1], x_coords[i+1], x_coords[i]])
+            cell_nodes_right_electrode_z.append([z_coords[k], z_coords[k], z_coords[k+1], z_coords[k+1]])
+        
+        # Add nodes
+        corners = [
+            (i, j, k), (i+1, j, k), (i+1, j+1, k), (i, j+1, k),
+            (i, j, k+1), (i+1, j, k+1), (i+1, j+1, k+1), (i, j+1, k+1)
+        ]
+        for corner in corners:
+            ci, cj, ck = corner
+            nodes_electrode_set.add((x_coords[ci], y_coords[cj], z_coords[ck]))
+        
+        # Check interface with pore (6 faces)
+        for offset, face_corners in face_checks:
+            ni, nj, nk = i + offset[0], j + offset[1], k + offset[2]
+            if 0 <= ni < num_pixels_x and 0 <= nj < num_pixels_y and 0 <= nk < num_pixels_z:
+                if img_[ni, nj, nk] == 0:  # Adjacent to pore
+                    face_x = [x_coords[fc[0]] for fc in face_corners]
+                    face_y = [y_coords[fc[1]] for fc in face_corners]
+                    face_z = [z_coords[fc[2]] for fc in face_corners]
+                    cell_nodes_interface_electrode_pore_x.append(face_x)
+                    cell_nodes_interface_electrode_pore_y.append(face_y)
+                    cell_nodes_interface_electrode_pore_z.append(face_z)
+    
+    # Process pore pixels
+    for idx in pore_pixels:
+        i, j, k = idx
+        
+        # Add cell nodes
+        x_cell = [x_coords[i], x_coords[i+1], x_coords[i+1], x_coords[i],
+                  x_coords[i], x_coords[i+1], x_coords[i+1], x_coords[i]]
+        y_cell = [y_coords[j], y_coords[j], y_coords[j+1], y_coords[j+1],
+                  y_coords[j], y_coords[j], y_coords[j+1], y_coords[j+1]]
+        z_cell = [z_coords[k], z_coords[k], z_coords[k], z_coords[k],
+                  z_coords[k+1], z_coords[k+1], z_coords[k+1], z_coords[k+1]]
+        
+        cell_nodes_pore_x.append(x_cell)
+        cell_nodes_pore_y.append(y_cell)
+        cell_nodes_pore_z.append(z_cell)
+        
+        # Right boundary cells
+        if j + 1 == num_pixels_y:
+            cell_nodes_right_pore_x.append([x_coords[i], x_coords[i+1], x_coords[i+1], x_coords[i]])
+            cell_nodes_right_pore_z.append([z_coords[k], z_coords[k], z_coords[k+1], z_coords[k+1]])
+        
+        # Add nodes
+        corners = [
+            (i, j, k), (i+1, j, k), (i+1, j+1, k), (i, j+1, k),
+            (i, j, k+1), (i+1, j, k+1), (i+1, j+1, k+1), (i, j+1, k+1)
+        ]
+        for corner in corners:
+            ci, cj, ck = corner
+            nodes_pore_set.add((x_coords[ci], y_coords[cj], z_coords[ck]))
+    
+    # Convert sets to sorted lists
+    x_nodes_mechanical = sorted(list(nodes_mechanical_set))
+    x_nodes_electrolyte = sorted(list(nodes_electrolyte_set))
+    x_nodes_electrode = sorted(list(nodes_electrode_set))
+    x_nodes_pore = sorted(list(nodes_pore_set))
+    segments_source = np.array(sorted(list(segments_source_set)))
+    
+    # Generate boundary node IDs
+    nodes_id_left_electrolyte = []
+    for idx, node in enumerate(x_nodes_electrolyte):
+        if node[1] == y_min:  # j == 0
+            nodes_id_left_electrolyte.append(idx)
+    
+    nodes_id_right_electrode = []
+    for idx, node in enumerate(x_nodes_electrode):
+        if node[1] == y_max:  # j == num_pixels_y
+            nodes_id_right_electrode.append(idx)
+    
+    nodes_id_right_pore = []
+    for idx, node in enumerate(x_nodes_pore):
+        if node[1] == y_max:  # j == num_pixels_y
+            nodes_id_right_pore.append(idx)
+    
+    return (x_nodes_mechanical, x_nodes_electrolyte, x_nodes_electrode, x_nodes_pore, 
+            segments_source, cell_nodes_fixed_x, cell_nodes_fixed_z, 
+            nodes_id_left_electrolyte, nodes_id_right_electrode, nodes_id_right_pore, 
+            cell_nodes_electrolyte_x, cell_nodes_electrolyte_y, cell_nodes_electrolyte_z, 
+            cell_nodes_electrode_x, cell_nodes_electrode_y, cell_nodes_electrode_z,
+            cell_nodes_pore_x, cell_nodes_pore_y, cell_nodes_pore_z, 
+            cell_nodes_left_electrolyte_x, cell_nodes_left_electrolyte_z, 
+            cell_nodes_right_electrode_x, cell_nodes_right_electrode_z, 
+            cell_nodes_right_pore_x, cell_nodes_right_pore_z,
+            cell_nodes_interface_electrode_electrolyte_x,
+            cell_nodes_interface_electrode_electrolyte_y,
+            cell_nodes_interface_electrode_electrolyte_z,
+            cell_nodes_interface_electrode_pore_x, 
+            cell_nodes_interface_electrode_pore_y, 
+            cell_nodes_interface_electrode_pore_z)
+
+
+
+def x_G_and_def_J_time_weight_3d_fuelcell_domain(cell_nodes_x, cell_nodes_y, cell_nodes_z, 
+                                                   x_G_domain, weight_G_domain):
+    """
+    Vectorized version of 3D Gauss point and Jacobian computation.
+    
+    Calculates Gauss point coordinates and Jacobian determinants for 3D hexahedral elements.
+    
+    Parameters:
+    -----------
+    cell_nodes_x, cell_nodes_y, cell_nodes_z : ndarray
+        Coordinates of cell vertices (n_cells, 8)
+    x_G_domain : list
+        Gauss point locations in reference coordinates
+    weight_G_domain : list
+        Gauss quadrature weights
+    
+    Returns:
+    --------
+    x_G : list
+        Physical coordinates of Gauss points
+    det_J_time_weight : list
+        Jacobian determinants times weights
+    """
+    
+    cell_nodes_x = np.atleast_2d(cell_nodes_x)
+    cell_nodes_y = np.atleast_2d(cell_nodes_y)
+    cell_nodes_z = np.atleast_2d(cell_nodes_z)
+    
+    n_cells = cell_nodes_x.shape[0]
+    n_gauss = len(x_G_domain)
+    
+    x_G = []
+    det_J_time_weight = []
+    
+    # Convert Gauss points to array for vectorization
+    xi_eta_zeta = np.array(x_G_domain)  # (n_gauss, 3)
+    weights = np.array(weight_G_domain)
+    
+    # Shape functions: N_i(xi, eta, zeta)
+    # For hexahedral element with 8 nodes
+    for i in range(n_cells):
+        x_ver = cell_nodes_x[i, :]
+        y_ver = cell_nodes_y[i, :]
+        z_ver = cell_nodes_z[i, :]
+        
+        for k in range(n_gauss):
+            xi, eta, zeta = xi_eta_zeta[k]
+            
+            # Shape functions (8 nodes)
+            N = np.array([
+                (1 + xi) * (1 - eta) * (1 - zeta),
+                (1 + xi) * (1 + eta) * (1 - zeta),
+                (1 - xi) * (1 + eta) * (1 - zeta),
+                (1 - xi) * (1 - eta) * (1 - zeta),
+                (1 + xi) * (1 - eta) * (1 + zeta),
+                (1 + xi) * (1 + eta) * (1 + zeta),
+                (1 - xi) * (1 + eta) * (1 + zeta),
+                (1 - xi) * (1 - eta) * (1 + zeta)
+            ]) / 8.0
+            
+            # Gauss point coordinates
+            x_G_k = np.dot(N, x_ver)
+            y_G_k = np.dot(N, y_ver)
+            z_G_k = np.dot(N, z_ver)
+            x_G.append([x_G_k, y_G_k, z_G_k])
+            
+            # Shape function derivatives w.r.t. reference coordinates
+            dN_dxi = np.array([
+                (1 - eta) * (1 - zeta),
+                (1 + eta) * (1 - zeta),
+                -(1 + eta) * (1 - zeta),
+                -(1 - eta) * (1 - zeta),
+                (1 - eta) * (1 + zeta),
+                (1 + eta) * (1 + zeta),
+                -(1 + eta) * (1 + zeta),
+                -(1 - eta) * (1 + zeta)
+            ]) / 8.0
+            
+            dN_deta = np.array([
+                -(1 + xi) * (1 - zeta),
+                (1 + xi) * (1 - zeta),
+                (1 - xi) * (1 - zeta),
+                -(1 - xi) * (1 - zeta),
+                -(1 + xi) * (1 + zeta),
+                (1 + xi) * (1 + zeta),
+                (1 - xi) * (1 + zeta),
+                -(1 - xi) * (1 + zeta)
+            ]) / 8.0
+            
+            dN_dzeta = np.array([
+                -(1 + xi) * (1 - eta),
+                -(1 + xi) * (1 + eta),
+                -(1 - xi) * (1 + eta),
+                -(1 - xi) * (1 - eta),
+                (1 + xi) * (1 - eta),
+                (1 + xi) * (1 + eta),
+                (1 - xi) * (1 + eta),
+                (1 - xi) * (1 - eta)
+            ]) / 8.0
+            
+            # Jacobian matrix
+            J11 = np.dot(dN_dxi, x_ver)
+            J12 = np.dot(dN_deta, x_ver)
+            J13 = np.dot(dN_dzeta, x_ver)
+            J21 = np.dot(dN_dxi, y_ver)
+            J22 = np.dot(dN_deta, y_ver)
+            J23 = np.dot(dN_dzeta, y_ver)
+            J31 = np.dot(dN_dxi, z_ver)
+            J32 = np.dot(dN_deta, z_ver)
+            J33 = np.dot(dN_dzeta, z_ver)
+            
+            J = np.array([[J11, J12, J13],
+                         [J21, J22, J23],
+                         [J31, J32, J33]])
+            
+            det_J_time_weight.append(np.linalg.det(J) * weights[k])
+    
     return x_G, det_J_time_weight
 
 
-# get all gauss points in domain, 3d domain, 2d boundary
-def x_G_b_and_det_J_b_time_weight_3d_fuelcell_2d_boundary(cell_nodes_boundary_x,cell_nodes_boundary_z, y_coords_on_boundary, x_G_domain, weight_G_domain):
-    x_G = []      # xy coordinates of gauss points in domain   
-    det_J_time_weight = []    # determin of jacobian
-
-    for i in range(np.shape(cell_nodes_boundary_x)[0]):
-        # in the mn (n^th row, m^th column) gauss integration domain, calculate the xy coordinates of each domain vertex
-        x_ver_mn = cell_nodes_boundary_x[i, :]
-        z_ver_mn = cell_nodes_boundary_z[i, :]
-        # calculate the cy coordinates of gauss points in current integration domain
-        for k in range(len(x_G_domain)):
+def x_G_b_and_det_J_b_time_weight_3d_fuelcell_2d_boundary(cell_nodes_boundary_x, cell_nodes_boundary_z, 
+                                                            y_coords_on_boundary, x_G_domain, weight_G_domain):
+    """
+    Vectorized version of 2D boundary Gauss points in 3D space.
+    
+    Computes Gauss points on 2D boundaries (constant y-coordinate).
+    
+    Parameters:
+    -----------
+    cell_nodes_boundary_x, cell_nodes_boundary_z : ndarray
+        Boundary cell node coordinates (n_cells, 4)
+    y_coords_on_boundary : float
+        Fixed y-coordinate of the boundary
+    x_G_domain : list
+        Gauss point locations in 2D reference coordinates
+    weight_G_domain : list
+        Gauss quadrature weights
+    
+    Returns:
+    --------
+    x_G : list
+        Physical coordinates of boundary Gauss points
+    det_J_time_weight : list
+        Jacobian determinants times weights
+    """
+    
+    cell_nodes_boundary_x = np.atleast_2d(cell_nodes_boundary_x)
+    cell_nodes_boundary_z = np.atleast_2d(cell_nodes_boundary_z)
+    
+    n_cells = cell_nodes_boundary_x.shape[0]
+    n_gauss = len(x_G_domain)
+    
+    x_G = []
+    det_J_time_weight = []
+    
+    xi_eta = np.array(x_G_domain)  # (n_gauss, 2)
+    weights = np.array(weight_G_domain)
+    
+    for i in range(n_cells):
+        x_ver = cell_nodes_boundary_x[i, :]
+        z_ver = cell_nodes_boundary_z[i, :]
+        
+        for k in range(n_gauss):
+            xi, eta = xi_eta[k]
             
-            x_G_mn_k = 1.0/4.0*np.dot(np.array([(1-x_G_domain[k][0])*(1-x_G_domain[k][1]), (1+x_G_domain[k][0])*(1-x_G_domain[k][1]), \
-                                    (1+x_G_domain[k][0])*(1+x_G_domain[k][1]), (1-x_G_domain[k][0])*(1+x_G_domain[k][1])],dtype=np.float64), np.transpose(x_ver_mn))
-            z_G_mn_k = 1.0/4.0*np.dot(np.array([(1-x_G_domain[k][0])*(1-x_G_domain[k][1]), (1+x_G_domain[k][0])*(1-x_G_domain[k][1]), \
-                                    (1+x_G_domain[k][0])*(1+x_G_domain[k][1]), (1-x_G_domain[k][0])*(1+x_G_domain[k][1])],dtype=np.float64), np.transpose(z_ver_mn))
-            y_G_mn_k = y_coords_on_boundary
+            # 2D shape functions for quadrilateral
+            N = np.array([
+                (1 - xi) * (1 - eta),
+                (1 + xi) * (1 - eta),
+                (1 + xi) * (1 + eta),
+                (1 - xi) * (1 + eta)
+            ]) / 4.0
             
-            x_G.append([x_G_mn_k, y_G_mn_k, z_G_mn_k])
+            x_G_k = np.dot(N, x_ver)
+            z_G_k = np.dot(N, z_ver)
+            y_G_k = y_coords_on_boundary
             
-            J1 = 1.0/4.0*np.dot(np.array([-(1-x_G_domain[k][1]), (1-x_G_domain[k][1]), (1+x_G_domain[k][1]), (-1-x_G_domain[k][1])]), np.transpose(x_ver_mn))
-            J2 = 1.0/4.0*np.dot(np.array([-(1-x_G_domain[k][1]), (1-x_G_domain[k][1]), (1+x_G_domain[k][1]), (-1-x_G_domain[k][1])]), np.transpose(z_ver_mn))
-            J3 = 1.0/4.0*np.dot(np.array([-(1-x_G_domain[k][0]), (-1-x_G_domain[k][0]), (1+x_G_domain[k][0]), (1-x_G_domain[k][0])]), np.transpose(x_ver_mn))
-            J4 = 1.0/4.0*np.dot(np.array([-(1-x_G_domain[k][0]), (-1-x_G_domain[k][0]), (1+x_G_domain[k][0]), (1-x_G_domain[k][0])]), np.transpose(z_ver_mn))
-
-            det_J_time_weight.append(np.linalg.det(np.array([[J1, J2],[J3,J4]]))*weight_G_domain[k])
-           
+            x_G.append([x_G_k, y_G_k, z_G_k])
+            
+            # Shape function derivatives
+            dN_dxi = np.array([
+                -(1 - eta),
+                (1 - eta),
+                (1 + eta),
+                -(1 + eta)
+            ]) / 4.0
+            
+            dN_deta = np.array([
+                -(1 - xi),
+                -(1 + xi),
+                (1 + xi),
+                (1 - xi)
+            ]) / 4.0
+            
+            # Jacobian for 2D boundary
+            J1 = np.dot(dN_dxi, x_ver)
+            J2 = np.dot(dN_dxi, z_ver)
+            J3 = np.dot(dN_deta, x_ver)
+            J4 = np.dot(dN_deta, z_ver)
+            
+            det_J = J1 * J4 - J2 * J3
+            det_J_time_weight.append(det_J * weights[k])
+    
     return x_G, det_J_time_weight
 
 
-
-def x_G_b_and_det_J_b_time_weight_3d_fuelcell_2d_boundary_interface(cell_nodes_boundary_x,cell_nodes_boundary_y, cell_nodes_boundary_z, x_G_domain, weight_G_domain):
-    x_G = []      # xy coordinates of gauss points in domain   
-    det_J_time_weight = []    # determin of jacobian
-
-    for i in range(np.shape(cell_nodes_boundary_x)[0]):
-        # in the mn (n^th row, m^th column) gauss integration domain, calculate the xy coordinates of each domain vertex
-        x_ver_mn = cell_nodes_boundary_x[i, :]
-        y_ver_mn = cell_nodes_boundary_y[i, :]
-        z_ver_mn = cell_nodes_boundary_z[i, :]
-        # calculate the cy coordinates of gauss points in current integration domain
-        for k in range(len(x_G_domain)):
-            if y_ver_mn[0] == y_ver_mn[1] and y_ver_mn[1] == y_ver_mn[2] and y_ver_mn[2] == y_ver_mn[3]:
+def x_G_b_and_det_J_b_time_weight_3d_fuelcell_2d_boundary_interface(cell_nodes_boundary_x, 
+                                                                      cell_nodes_boundary_y, 
+                                                                      cell_nodes_boundary_z, 
+                                                                      x_G_domain, weight_G_domain):
+    """
+    Vectorized version of interface boundary Gauss points.
+    
+    Handles boundaries aligned with any coordinate plane (constant x, y, or z).
+    
+    Parameters:
+    -----------
+    cell_nodes_boundary_x, cell_nodes_boundary_y, cell_nodes_boundary_z : ndarray
+        Boundary cell node coordinates (n_cells, 4)
+    x_G_domain : list
+        Gauss point locations in 2D reference coordinates
+    weight_G_domain : list
+        Gauss quadrature weights
+    
+    Returns:
+    --------
+    x_G : list
+        Physical coordinates of boundary Gauss points
+    det_J_time_weight : list
+        Jacobian determinants times weights
+    """
+    
+    cell_nodes_boundary_x = np.atleast_2d(cell_nodes_boundary_x)
+    cell_nodes_boundary_y = np.atleast_2d(cell_nodes_boundary_y)
+    cell_nodes_boundary_z = np.atleast_2d(cell_nodes_boundary_z)
+    
+    n_cells = cell_nodes_boundary_x.shape[0]
+    n_gauss = len(x_G_domain)
+    
+    x_G = []
+    det_J_time_weight = []
+    
+    xi_eta = np.array(x_G_domain)  # (n_gauss, 2)
+    weights = np.array(weight_G_domain)
+    
+    for i in range(n_cells):
+        x_ver = cell_nodes_boundary_x[i, :]
+        y_ver = cell_nodes_boundary_y[i, :]
+        z_ver = cell_nodes_boundary_z[i, :]
+        
+        # Determine which coordinate is constant
+        x_const = np.allclose(x_ver, x_ver[0])
+        y_const = np.allclose(y_ver, y_ver[0])
+        z_const = np.allclose(z_ver, z_ver[0])
+        
+        for k in range(n_gauss):
+            xi, eta = xi_eta[k]
             
-                x_G_mn_k = 1.0/4.0*np.dot(np.array([(1-x_G_domain[k][0])*(1-x_G_domain[k][1]), (1+x_G_domain[k][0])*(1-x_G_domain[k][1]), \
-                                        (1+x_G_domain[k][0])*(1+x_G_domain[k][1]), (1-x_G_domain[k][0])*(1+x_G_domain[k][1])],dtype=np.float64), np.transpose(x_ver_mn))
-                z_G_mn_k = 1.0/4.0*np.dot(np.array([(1-x_G_domain[k][0])*(1-x_G_domain[k][1]), (1+x_G_domain[k][0])*(1-x_G_domain[k][1]), \
-                                        (1+x_G_domain[k][0])*(1+x_G_domain[k][1]), (1-x_G_domain[k][0])*(1+x_G_domain[k][1])],dtype=np.float64), np.transpose(z_ver_mn))
-                y_G_mn_k = y_ver_mn[0]
-                
-                x_G.append([x_G_mn_k, y_G_mn_k, z_G_mn_k])
-                
-                J1 = 1.0/4.0*np.dot(np.array([-(1-x_G_domain[k][1]), (1-x_G_domain[k][1]), (1+x_G_domain[k][1]), (-1-x_G_domain[k][1])]), np.transpose(x_ver_mn))
-                J2 = 1.0/4.0*np.dot(np.array([-(1-x_G_domain[k][1]), (1-x_G_domain[k][1]), (1+x_G_domain[k][1]), (-1-x_G_domain[k][1])]), np.transpose(z_ver_mn))
-                J3 = 1.0/4.0*np.dot(np.array([-(1-x_G_domain[k][0]), (-1-x_G_domain[k][0]), (1+x_G_domain[k][0]), (1-x_G_domain[k][0])]), np.transpose(x_ver_mn))
-                J4 = 1.0/4.0*np.dot(np.array([-(1-x_G_domain[k][0]), (-1-x_G_domain[k][0]), (1+x_G_domain[k][0]), (1-x_G_domain[k][0])]), np.transpose(z_ver_mn))
-
-                det_J_time_weight.append(np.linalg.det(np.array([[J1, J2],[J3,J4]]))*weight_G_domain[k])
-            if x_ver_mn[0] == x_ver_mn[1] and x_ver_mn[1] == x_ver_mn[2] and x_ver_mn[2] == x_ver_mn[3]:
+            # 2D shape functions
+            N = np.array([
+                (1 - xi) * (1 - eta),
+                (1 + xi) * (1 - eta),
+                (1 + xi) * (1 + eta),
+                (1 - xi) * (1 + eta)
+            ]) / 4.0
             
-                y_G_mn_k = 1.0/4.0*np.dot(np.array([(1-x_G_domain[k][0])*(1-x_G_domain[k][1]), (1+x_G_domain[k][0])*(1-x_G_domain[k][1]), \
-                                        (1+x_G_domain[k][0])*(1+x_G_domain[k][1]), (1-x_G_domain[k][0])*(1+x_G_domain[k][1])],dtype=np.float64), np.transpose(y_ver_mn))
-                z_G_mn_k = 1.0/4.0*np.dot(np.array([(1-x_G_domain[k][0])*(1-x_G_domain[k][1]), (1+x_G_domain[k][0])*(1-x_G_domain[k][1]), \
-                                        (1+x_G_domain[k][0])*(1+x_G_domain[k][1]), (1-x_G_domain[k][0])*(1+x_G_domain[k][1])],dtype=np.float64), np.transpose(z_ver_mn))
-                x_G_mn_k = x_ver_mn[0]
-                
-                x_G.append([x_G_mn_k, y_G_mn_k, z_G_mn_k])
-                
-                J1 = 1.0/4.0*np.dot(np.array([-(1-x_G_domain[k][1]), (1-x_G_domain[k][1]), (1+x_G_domain[k][1]), (-1-x_G_domain[k][1])]), np.transpose(y_ver_mn))
-                J2 = 1.0/4.0*np.dot(np.array([-(1-x_G_domain[k][1]), (1-x_G_domain[k][1]), (1+x_G_domain[k][1]), (-1-x_G_domain[k][1])]), np.transpose(z_ver_mn))
-                J3 = 1.0/4.0*np.dot(np.array([-(1-x_G_domain[k][0]), (-1-x_G_domain[k][0]), (1+x_G_domain[k][0]), (1-x_G_domain[k][0])]), np.transpose(y_ver_mn))
-                J4 = 1.0/4.0*np.dot(np.array([-(1-x_G_domain[k][0]), (-1-x_G_domain[k][0]), (1+x_G_domain[k][0]), (1-x_G_domain[k][0])]), np.transpose(z_ver_mn))
-
-                det_J_time_weight.append(np.linalg.det(np.array([[J1, J2],[J3,J4]]))*weight_G_domain[k])
-            if z_ver_mn[0] == z_ver_mn[1] and z_ver_mn[1] == z_ver_mn[2] and z_ver_mn[2] == z_ver_mn[3]:
+            dN_dxi = np.array([
+                -(1 - eta),
+                (1 - eta),
+                (1 + eta),
+                -(1 + eta)
+            ]) / 4.0
             
-                x_G_mn_k = 1.0/4.0*np.dot(np.array([(1-x_G_domain[k][0])*(1-x_G_domain[k][1]), (1+x_G_domain[k][0])*(1-x_G_domain[k][1]), \
-                                        (1+x_G_domain[k][0])*(1+x_G_domain[k][1]), (1-x_G_domain[k][0])*(1+x_G_domain[k][1])],dtype=np.float64), np.transpose(x_ver_mn))
-                y_G_mn_k = 1.0/4.0*np.dot(np.array([(1-x_G_domain[k][0])*(1-x_G_domain[k][1]), (1+x_G_domain[k][0])*(1-x_G_domain[k][1]), \
-                                        (1+x_G_domain[k][0])*(1+x_G_domain[k][1]), (1-x_G_domain[k][0])*(1+x_G_domain[k][1])],dtype=np.float64), np.transpose(y_ver_mn))
-                z_G_mn_k = z_ver_mn[0]
+            dN_deta = np.array([
+                -(1 - xi),
+                -(1 + xi),
+                (1 + xi),
+                (1 - xi)
+            ]) / 4.0
+            
+            if y_const:  # Constant y (x-z plane)
+                x_G_k = np.dot(N, x_ver)
+                y_G_k = y_ver[0]
+                z_G_k = np.dot(N, z_ver)
                 
-                x_G.append([x_G_mn_k, y_G_mn_k, z_G_mn_k])
+                J1 = np.dot(dN_dxi, x_ver)
+                J2 = np.dot(dN_dxi, z_ver)
+                J3 = np.dot(dN_deta, x_ver)
+                J4 = np.dot(dN_deta, z_ver)
                 
-                J1 = 1.0/4.0*np.dot(np.array([-(1-x_G_domain[k][1]), (1-x_G_domain[k][1]), (1+x_G_domain[k][1]), (-1-x_G_domain[k][1])]), np.transpose(x_ver_mn))
-                J2 = 1.0/4.0*np.dot(np.array([-(1-x_G_domain[k][1]), (1-x_G_domain[k][1]), (1+x_G_domain[k][1]), (-1-x_G_domain[k][1])]), np.transpose(y_ver_mn))
-                J3 = 1.0/4.0*np.dot(np.array([-(1-x_G_domain[k][0]), (-1-x_G_domain[k][0]), (1+x_G_domain[k][0]), (1-x_G_domain[k][0])]), np.transpose(x_ver_mn))
-                J4 = 1.0/4.0*np.dot(np.array([-(1-x_G_domain[k][0]), (-1-x_G_domain[k][0]), (1+x_G_domain[k][0]), (1-x_G_domain[k][0])]), np.transpose(y_ver_mn))
-
-                det_J_time_weight.append(np.linalg.det(np.array([[J1, J2],[J3,J4]]))*weight_G_domain[k])
-           
+            elif x_const:  # Constant x (y-z plane)
+                x_G_k = x_ver[0]
+                y_G_k = np.dot(N, y_ver)
+                z_G_k = np.dot(N, z_ver)
+                
+                J1 = np.dot(dN_dxi, y_ver)
+                J2 = np.dot(dN_dxi, z_ver)
+                J3 = np.dot(dN_deta, y_ver)
+                J4 = np.dot(dN_deta, z_ver)
+                
+            elif z_const:  # Constant z (x-y plane)
+                x_G_k = np.dot(N, x_ver)
+                y_G_k = np.dot(N, y_ver)
+                z_G_k = z_ver[0]
+                
+                J1 = np.dot(dN_dxi, x_ver)
+                J2 = np.dot(dN_dxi, y_ver)
+                J3 = np.dot(dN_deta, x_ver)
+                J4 = np.dot(dN_deta, y_ver)
+            else:
+                continue  # Skip if not a valid boundary
+            
+            x_G.append([x_G_k, y_G_k, z_G_k])
+            det_J = J1 * J4 - J2 * J3
+            det_J_time_weight.append(det_J * weights[k])
+    
     return x_G, det_J_time_weight
 
-# 3D dmain, 1d line boundary
+
 @jit
 def x_G_and_det_J_line_3d_fuelcell_1d_boundary(segments_source, x_G_line, weight_G_line):
-
-    x_G_b_line = []         
-    det_J_b_time_weight_line = []    # determin of jacobian
-
-
-    for i in range(np.shape(segments_source)[0]):
-        x_ver1 = segments_source[i,0]
-        y_ver1 = segments_source[i,1]
-        z_ver1 = segments_source[i,2]
-        x_ver2 = segments_source[i,3]
-        y_ver2 = segments_source[i,4]
-        z_ver2 = segments_source[i,5]
-
-        if x_ver1 == x_ver2 and z_ver1 == z_ver2:
-            y_ver_b = np.array([y_ver1, y_ver2])
-                
-            for k in range(len(x_G_line)):
-                y_G_ij_k = (y_ver_b[1]-y_ver_b[0])/2*x_G_line[k]+(y_ver_b[1]+y_ver_b[0])/2
-                z_G_ij_k = z_ver1
-                x_G_ij_k = x_ver1
-                x_G_b_line.append([x_G_ij_k, y_G_ij_k, z_G_ij_k])
-
-                det_J_b_time_weight_line.append((y_ver_b[1]-y_ver_b[0])/2*weight_G_line[k])
+    """
+    Vectorized version of 1D line Gauss points in 3D space.
+    
+    Computes Gauss points along line segments (triple junctions).
+    
+    Parameters:
+    -----------
+    segments_source : ndarray
+        Line segment endpoints (n_segments, 6) - [x1, y1, z1, x2, y2, z2]
+    x_G_line : list
+        Gauss point locations in 1D reference coordinate
+    weight_G_line : list
+        Gauss quadrature weights
+    
+    Returns:
+    --------
+    x_G_b_line : list
+        Physical coordinates of line Gauss points
+    det_J_b_time_weight_line : list
+        Jacobian determinants times weights
+    """
+    
+    x_G_b_line = []
+    det_J_b_time_weight_line = []
+    
+    n_segments = segments_source.shape[0]
+    
+    for i in range(n_segments):
+        x1, y1, z1, x2, y2, z2 = segments_source[i]
+        
+        # Determine segment direction
+        dx = x2 - x1
+        dy = y2 - y1
+        dz = z2 - z1
+        
+        # Line segment length / 2 (Jacobian)
+        if abs(dx) > 1e-10:  # x varies
+            length_half = abs(dx) / 2
+        elif abs(dy) > 1e-10:  # y varies
+            length_half = abs(dy) / 2
+        else:  # z varies
+            length_half = abs(dz) / 2
+        
+        # Gauss points along segment
+        for k in range(len(x_G_line)):
+            xi = x_G_line[k]
             
-        if x_ver1 == x_ver2 and y_ver1 == y_ver2:              # right boundary
-            z_ver_b = np.array([z_ver1, z_ver2])
-
-            for k in range(len(x_G_line)):
-                x_G_ij_k = x_ver1
-                y_G_ij_k = y_ver1
-                z_G_ij_k = (z_ver_b[1]-z_ver_b[0])/2*x_G_line[k]+(z_ver_b[1]+z_ver_b[0])/2
-                x_G_b_line.append([x_G_ij_k, y_G_ij_k, z_G_ij_k])
-
-                det_J_b_time_weight_line.append((z_ver_b[1]-z_ver_b[0])/2*weight_G_line[k])
-
-        if z_ver1 == z_ver2 and y_ver1 == y_ver2:              # right boundary
-            x_ver_b = np.array([x_ver1, x_ver2])
-
-            for k in range(len(x_G_line)):
-                z_G_ij_k = z_ver1
-                y_G_ij_k = y_ver1
-                x_G_ij_k = (x_ver_b[1]-x_ver_b[0])/2*x_G_line[k]+(x_ver_b[1]+x_ver_b[0])/2
-                x_G_b_line.append([x_G_ij_k, y_G_ij_k, z_G_ij_k])
-
-                det_J_b_time_weight_line.append((x_ver_b[1]-x_ver_b[0])/2*weight_G_line[k])
+            # Map from reference [-1, 1] to physical coordinates
+            x_G_k = (x2 - x1) / 2 * xi + (x2 + x1) / 2
+            y_G_k = (y2 - y1) / 2 * xi + (y2 + y1) / 2
+            z_G_k = (z2 - z1) / 2 * xi + (z2 + z1) / 2
             
+            x_G_b_line.append([x_G_k, y_G_k, z_G_k])
+            det_J_b_time_weight_line.append(length_half * weight_G_line[k])
+    
     return x_G_b_line, det_J_b_time_weight_line
