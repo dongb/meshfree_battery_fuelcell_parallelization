@@ -7,10 +7,7 @@ import matplotlib.pyplot as plt
 
 from tqdm import tqdm
 
-from numba import jit, njit
-from numba.typed import List
-
-import numba
+# Removed numba imports - using vectorized NumPy instead
 
 from scipy.sparse import csc_matrix, csr_matrix, bmat
 from scipy.sparse.linalg import spsolve
@@ -650,20 +647,20 @@ def x_G_b_and_det_J_b_time_weight_3d_fuelcell_2d_boundary_interface(cell_nodes_b
     return x_G, det_J_time_weight
 
 
-@jit
 def x_G_and_det_J_line_3d_fuelcell_1d_boundary(segments_source, x_G_line, weight_G_line):
     """
-    Vectorized version of 1D line Gauss points in 3D space.
+    VECTORIZED version of 1D line Gauss points in 3D space.
     
     Computes Gauss points along line segments (triple junctions).
+    Removed @jit decorator and vectorized the computation.
     
     Parameters:
     -----------
     segments_source : ndarray
         Line segment endpoints (n_segments, 6) - [x1, y1, z1, x2, y2, z2]
-    x_G_line : list
+    x_G_line : list or array
         Gauss point locations in 1D reference coordinate
-    weight_G_line : list
+    weight_G_line : list or array
         Gauss quadrature weights
     
     Returns:
@@ -673,38 +670,59 @@ def x_G_and_det_J_line_3d_fuelcell_1d_boundary(segments_source, x_G_line, weight
     det_J_b_time_weight_line : list
         Jacobian determinants times weights
     """
-    
-    x_G_b_line = []
-    det_J_b_time_weight_line = []
+    x_G_line = np.array(x_G_line)
+    weight_G_line = np.array(weight_G_line)
     
     n_segments = segments_source.shape[0]
+    n_gauss = len(x_G_line)
     
-    for i in range(n_segments):
-        x1, y1, z1, x2, y2, z2 = segments_source[i]
-        
-        # Determine segment direction
-        dx = x2 - x1
-        dy = y2 - y1
-        dz = z2 - z1
-        
-        # Line segment length / 2 (Jacobian)
-        if abs(dx) > 1e-10:  # x varies
-            length_half = abs(dx) / 2
-        elif abs(dy) > 1e-10:  # y varies
-            length_half = abs(dy) / 2
-        else:  # z varies
-            length_half = abs(dz) / 2
-        
-        # Gauss points along segment
-        for k in range(len(x_G_line)):
-            xi = x_G_line[k]
-            
-            # Map from reference [-1, 1] to physical coordinates
-            x_G_k = (x2 - x1) / 2 * xi + (x2 + x1) / 2
-            y_G_k = (y2 - y1) / 2 * xi + (y2 + y1) / 2
-            z_G_k = (z2 - z1) / 2 * xi + (z2 + z1) / 2
-            
-            x_G_b_line.append([x_G_k, y_G_k, z_G_k])
-            det_J_b_time_weight_line.append(length_half * weight_G_line[k])
+    # Extract segment endpoints
+    x1, y1, z1 = segments_source[:, 0], segments_source[:, 1], segments_source[:, 2]
+    x2, y2, z2 = segments_source[:, 3], segments_source[:, 4], segments_source[:, 5]
+    
+    # Compute segment direction vectors
+    dx = x2 - x1  # (n_segments,)
+    dy = y2 - y1
+    dz = z2 - z1
+    
+    # Compute segment length / 2 (Jacobian) for each segment
+    # Use the maximum absolute difference to determine length
+    abs_dx = np.abs(dx)
+    abs_dy = np.abs(dy)
+    abs_dz = np.abs(dz)
+    
+    # Find which direction has the largest variation
+    max_vals = np.maximum(np.maximum(abs_dx, abs_dy), abs_dz)
+    length_half = max_vals / 2  # (n_segments,)
+    
+    # Broadcast computation: for each segment, for each Gauss point
+    # Shape: (n_segments, n_gauss)
+    x1_expanded = x1[:, np.newaxis]  # (n_segments, 1)
+    y1_expanded = y1[:, np.newaxis]
+    z1_expanded = z1[:, np.newaxis]
+    x2_expanded = x2[:, np.newaxis]
+    y2_expanded = y2[:, np.newaxis]
+    z2_expanded = z2[:, np.newaxis]
+    
+    dx_expanded = dx[:, np.newaxis]
+    dy_expanded = dy[:, np.newaxis]
+    dz_expanded = dz[:, np.newaxis]
+    
+    xi_expanded = x_G_line[np.newaxis, :]  # (1, n_gauss)
+    weight_expanded = weight_G_line[np.newaxis, :]  # (1, n_gauss)
+    
+    # Map from reference [-1, 1] to physical coordinates
+    # x_G = (x2 - x1)/2 * xi + (x2 + x1)/2
+    x_G_k = dx_expanded / 2 * xi_expanded + (x2_expanded + x1_expanded) / 2  # (n_segments, n_gauss)
+    y_G_k = dy_expanded / 2 * xi_expanded + (y2_expanded + y1_expanded) / 2
+    z_G_k = dz_expanded / 2 * xi_expanded + (z2_expanded + z1_expanded) / 2
+    
+    # Jacobian times weight
+    length_half_expanded = length_half[:, np.newaxis]  # (n_segments, 1)
+    det_J_weight = length_half_expanded * weight_expanded  # (n_segments, n_gauss)
+    
+    # Flatten and convert to list (to maintain compatibility with existing code)
+    x_G_b_line = np.stack([x_G_k.ravel(), y_G_k.ravel(), z_G_k.ravel()], axis=1).tolist()
+    det_J_b_time_weight_line = det_J_weight.ravel().tolist()
     
     return x_G_b_line, det_J_b_time_weight_line

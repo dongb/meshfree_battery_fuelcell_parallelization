@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 
 from tqdm import tqdm
 
-from numba import jit
+# Removed numba import - using vectorized NumPy instead
 
 from scipy.sparse import csc_matrix, csr_matrix, bmat
 from scipy.sparse.linalg import spsolve
@@ -18,65 +18,149 @@ from numpy.linalg import norm, eig
 ###################################################################
 # define exchange current density, j0, which depends on x, 
 # x = real concentration/maximum concentration
+# VECTORIZED: Removed @jit, now works with scalar or array inputs
 ###################################################################
-@jit
 def i_0_complex(x):
-    A0 = 0.303490440978371
-    A1 = 1.271944700013477
-    A2 = 4.420894220185683e+02
-    A3 = -5.783762746199664e+03
-    A4 = 3.822682327855755e+04
-    A5 = -1.416477460103355e+05
-    A6 = 3.113802647858406e+05
-    A7 = -4.169011915077865e+05
-    A8 = 3.347705415406199e+05
-    A9 = -1.485221335897379e+05
-    A10 = 2.803425068966447e+04
-    P = (((((((((A10*x+A9)*x+A8)*x+A7)*x+A6)*x+A5)*x+A4)*x+A3)*x+A2)*x+A1)*x+A0
-    dp_dx = 10.0*A10*x**9+9.0*A9*x**8+8.0*A8*x**7+7.0*A7*x**6+6.0*A6*x**5+5.0*A5*x**4+4.0*A4*x**3+3.0*A3*x**2+2.0*A2*x+A1
+    """
+    Compute exchange current density and its derivative.
+    
+    Parameters:
+    -----------
+    x : float or ndarray
+        Normalized concentration (real concentration/maximum concentration)
+        Can be scalar or array
+    
+    Returns:
+    --------
+    P : float or ndarray
+        Exchange current density
+    dp_dx : float or ndarray
+        Derivative of P with respect to x
+    """
+    # Track if input was scalar
+    is_scalar = np.ndim(x) == 0
+    x = np.atleast_1d(x)
+    
+    # Polynomial coefficients for 10th order polynomial
+    coeffs = np.array([
+        2.803425068966447e+04,  # A10
+        -1.485221335897379e+05, # A9
+        3.347705415406199e+05,  # A8
+        -4.169011915077865e+05, # A7
+        3.113802647858406e+05,  # A6
+        -1.416477460103355e+05, # A5
+        3.822682327855755e+04,  # A4
+        -5.783762746199664e+03, # A3
+        4.420894220185683e+02,  # A2
+        1.271944700013477,      # A1
+        0.303490440978371       # A0
+    ])
+    
+    # Use NumPy's polynomial evaluation (Horner's method, vectorized)
+    P = np.polyval(coeffs, x)
+    
+    # Derivative coefficients (multiply by powers)
+    deriv_coeffs = coeffs[:-1] * np.arange(10, 0, -1)
+    dp_dx = np.polyval(deriv_coeffs, x)
+    
+    # Return scalar if input was scalar
+    if is_scalar:
+        return float(P[0]), float(dp_dx[0])
     return P, dp_dx
 
 
 ###################################################################
 # define alpha lattice, which depends on x, 
 #x = real concentration/maximum concentration
+# VECTORIZED: Removed @jit, now works with scalar or array inputs
 ###################################################################
-@jit
 def alpha_lattice_complex(x):
-    A0 = 2.81990134e-10
-    A1 = 4.05602287e-12
-    A2 = -1.37296095e-10
-    A3 = 1.80800247e-9
-    A4 = -1.19248433e-8
-    A5 = 4.45750059e-8
-    A6 = -9.98827607e-8
-    A7 = 1.36152708e-7
-    A8 = -1.1015245e-7
-    A9 = 4.84951233e-8
-    A10 = -8.93152235e-9
-    a_lattice = (((((((((A10*x+A9)*x+A8)*x+A7)*x+A6)*x+A5)*x+A4)*x+A3)*x+A2)*x+A1)*x+A0
-    dalattice_dx = 10.0*A10*x**9+9.0*A9*x**8+8.0*A8*x**7+7.0*A7*x**6+6.0*A6*x**5+5.0*A5*x**4+4.0*A4*x**3+3.0*A3*x**2+2.0*A2*x+A1
+    """
+    Compute alpha lattice parameter and its derivative.
+    
+    Parameters:
+    -----------
+    x : float or ndarray
+        Normalized concentration
+    
+    Returns:
+    --------
+    a_lattice : float or ndarray
+        Alpha lattice parameter
+    dalattice_dx : float or ndarray
+        Derivative with respect to x
+    """
+    is_scalar = np.ndim(x) == 0
+    x = np.atleast_1d(x)
+    
+    coeffs = np.array([
+        -8.93152235e-9,   # A10
+        4.84951233e-8,    # A9
+        -1.1015245e-7,    # A8
+        1.36152708e-7,    # A7
+        -9.98827607e-8,   # A6
+        4.45750059e-8,    # A5
+        -1.19248433e-8,   # A4
+        1.80800247e-9,    # A3
+        -1.37296095e-10,  # A2
+        4.05602287e-12,   # A1
+        2.81990134e-10    # A0
+    ])
+    
+    a_lattice = np.polyval(coeffs, x)
+    
+    deriv_coeffs = coeffs[:-1] * np.arange(10, 0, -1)
+    dalattice_dx = np.polyval(deriv_coeffs, x)
+    
+    if is_scalar:
+        return float(a_lattice[0]), float(dalattice_dx[0])
     return a_lattice, dalattice_dx
 
 ###################################################################
 # define c lattice, which depends on x, 
 # x = real concentration/maximum concentration
+# VECTORIZED: Removed @jit, now works with scalar or array inputs
 ###################################################################
-@jit
 def c_lattice_complex(x):
-    A0 = 1.39010402e-9
-    A1 = 5.3010374e-11
-    A2 = 1.64333764e-9
-    A3 = -2.25843237e-8
-    A4 = 1.55438386e-7
-    A5 = -6.06667972e-7
-    A6 = 1.42129465e-6
-    A7 = -2.03022461e-6
-    A8 = 1.72702935e-6
-    A9 = -8.02967619e-7
-    A10 = 1.57015662e-7
-    c_lattice = (((((((((A10*x+A9)*x+A8)*x+A7)*x+A6)*x+A5)*x+A4)*x+A3)*x+A2)*x+A1)*x+A0
-    dclattice_dx = 10.0*A10*x**9+9.0*A9*x**8+8.0*A8*x**7+7.0*A7*x**6+6.0*A6*x**5+5.0*A5*x**4+4.0*A4*x**3+3.0*A3*x**2+2.0*A2*x+A1
+    """
+    Compute c lattice parameter and its derivative.
+    
+    Parameters:
+    -----------
+    x : float or ndarray
+        Normalized concentration
+    
+    Returns:
+    --------
+    c_lattice : float or ndarray
+        C lattice parameter
+    dclattice_dx : float or ndarray
+        Derivative with respect to x
+    """
+    is_scalar = np.ndim(x) == 0
+    x = np.atleast_1d(x)
+    
+    coeffs = np.array([
+        1.57015662e-7,    # A10
+        -8.02967619e-7,   # A9
+        1.72702935e-6,    # A8
+        -2.03022461e-6,   # A7
+        1.42129465e-6,    # A6
+        -6.06667972e-7,   # A5
+        1.55438386e-7,    # A4
+        -2.25843237e-8,   # A3
+        1.64333764e-9,    # A2
+        5.3010374e-11,    # A1
+        1.39010402e-9     # A0
+    ])
+    
+    c_lattice = np.polyval(coeffs, x)
+    
+    deriv_coeffs = coeffs[:-1] * np.arange(10, 0, -1)
+    dclattice_dx = np.polyval(deriv_coeffs, x)
+    
+    if is_scalar:
+        return float(c_lattice[0]), float(dclattice_dx[0])
     return c_lattice, dclattice_dx
 
 ######################################################################################################################################
@@ -137,6 +221,24 @@ def Dn_complex(x, D_damage):
 # define the open circulate potential E_eq
 ################################################################
 def ocp_complex(x):
+    """
+    Compute open circuit potential and its derivative.
+    
+    Parameters:
+    -----------
+    x : float or ndarray
+        Normalized concentration
+    
+    Returns:
+    --------
+    E_eq : float or ndarray
+        Open circuit potential
+    dEeq_dx : float or ndarray
+        Derivative with respect to x
+    """
+    is_scalar = np.ndim(x) == 0
+    x = np.atleast_1d(x)
+    
     Eeq_x_thresholds = np.array([-0.1000000000, 0.0000000000, 0.0250000000, 0.1000000000, 0.2000000000, 0.3000000000, 
                                    0.4000000000, 0.5000000000, 0.6000000000, 0.7000000000, 0.8000000000, 0.9000000000, 
                                    0.9500000000, 0.9750000000, 0.9900000000, 0.9950000000, 0.9990000000, 1.0000000000])
@@ -191,15 +293,51 @@ def ocp_complex(x):
         E_eq = np.where(logic_x, E_eq + E_eq_contrib, E_eq)
         dEeq_dx = np.where(logic_x, dEeq_dx + dEeq_dx_contrib, dEeq_dx)
 
+    if is_scalar:
+        return float(E_eq[0]), float(dEeq_dx[0])
     return E_eq, dEeq_dx 
 
 ################################################################
 # define current density
+# VECTORIZED: Removed @jit, now works with scalar or array inputs
 ################################################################
-@jit
 def i_se(p_s, j0, E_eq, Fday, R, Tk):
+    """
+    Compute Butler-Volmer current density and its derivatives.
+    
+    All NumPy operations are naturally vectorized, so this works
+    with both scalar and array inputs without needing @jit.
+    
+    Parameters:
+    -----------
+    p_s : float or ndarray
+        Solid phase potential
+    j0 : float or ndarray
+        Exchange current density
+    E_eq : float or ndarray
+        Equilibrium potential
+    Fday : float
+        Faraday constant
+    R : float
+        Gas constant
+    Tk : float
+        Temperature
+    
+    Returns:
+    --------
+    dibv_deta : float or ndarray
+        Derivative with respect to overpotential
+    dibv_di0 : float or ndarray
+        Derivative with respect to exchange current
+    i_bv : float or ndarray
+        Butler-Volmer current density
+    """
     eta_s = p_s - E_eq
-    i_bv = 2*j0*np.sinh(Fday/(2*R*Tk)*eta_s)
-    dibv_deta = 2*j0*np.cosh(Fday/(2*R*Tk)*eta_s)*Fday/(2*R*Tk)
-    dibv_di0 = 2*np.sinh(Fday/(2*R*Tk)*eta_s)
+    factor = Fday / (2 * R * Tk)
+    
+    # NumPy's sinh/cosh are already vectorized
+    i_bv = 2 * j0 * np.sinh(factor * eta_s)
+    dibv_deta = 2 * j0 * np.cosh(factor * eta_s) * factor
+    dibv_di0 = 2 * np.sinh(factor * eta_s)
+    
     return dibv_deta, dibv_di0, i_bv

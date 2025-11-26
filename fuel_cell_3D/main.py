@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 
 from tqdm import tqdm
 
-from numba import jit, njit, typed
+# Removed numba imports - all functions are now vectorized using NumPy
 import scipy.sparse as sp
 
 from scipy.sparse import csc_matrix, csr_matrix, bmat, block_diag,vstack

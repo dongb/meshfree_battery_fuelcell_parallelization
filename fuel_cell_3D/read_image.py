@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 
 from tqdm import tqdm
 
-from numba import jit
+# Removed numba import - not needed for this file
 
 from scipy.sparse import csc_matrix, csr_matrix, bmat
 from scipy.sparse.linalg import spsolve
@@ -25,16 +25,39 @@ import tifffile
 #########################
 
 def read_in_image(file_name, studied_physics, dimention):
-
-    img_ = tifffile.imread(file_name) # np array
+    """
+    Read microstructure image from TIFF file.
+    
+    No numba needed - this function uses standard NumPy and tifffile operations
+    which are already optimized.
+    
+    Parameters:
+    -----------
+    file_name : str
+        Path to TIFF image file
+    studied_physics : str
+        Type of physics being studied
+    dimention : int
+        Spatial dimension (2 or 3)
+    
+    Returns:
+    --------
+    img_ : ndarray
+        Image array
+    unic_grain_id : list
+        Unique grain IDs in the image
+    num_pixels_xyz : list
+        Number of pixels in each direction
+    """
+    img_ = tifffile.imread(file_name)  # np array
 
     grain_id_counter = Counter(img_.flatten())
-    unic_grain_id = [] # save the unique grain IDs. For fuel cell, 0: pore, 1: electrolyte, 2: electrode.
+    unic_grain_id = []  # save the unique grain IDs. For fuel cell, 0: pore, 1: electrolyte, 2: electrode.
 
     for key in grain_id_counter:
         unic_grain_id.append(int(key))
         
-    num_pixels_xyz = [] # number of volxels in x y z directions.
+    num_pixels_xyz = []  # number of volxels in x y z directions.
 
     num_pixels_x = np.shape(img_)[0]
     num_pixels_y = np.shape(img_)[1]
@@ -45,7 +68,6 @@ def read_in_image(file_name, studied_physics, dimention):
     if dimention == 3:
         num_pixels_z = np.shape(img_)[2]
         num_pixels_xyz.append(num_pixels_z)
-
 
     return img_, unic_grain_id, num_pixels_xyz
 

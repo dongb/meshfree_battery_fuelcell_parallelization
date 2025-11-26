@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 
 from tqdm import tqdm
 
-from numba import jit
+# Removed numba import - not needed for this file
 import scipy.sparse as sp
 
 from scipy.sparse import csc_matrix, csr_matrix, bmat

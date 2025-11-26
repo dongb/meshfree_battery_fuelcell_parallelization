@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 
 from tqdm import tqdm
 
-from numba import jit
+# Removed numba import - not needed for this file
 import scipy.sparse as sp
 
 from scipy.sparse import csc_matrix, csr_matrix, bmat
@@ -19,6 +19,12 @@ from numpy.linalg import norm, eig
 
 def diffusion_matrix_fuel_cell(dimention, point_or_line_source, shape_func_point_or_line_nodes, g_diretchlet, beta_Nitsche, normal_vector_x, normal_vector_y, global_diffusion,grad_shape_func_x,grad_shape_func_y,grad_shape_func_x_times_det_J_time_weight,grad_shape_func_y_times_det_J_time_weight,\
                      shape_func_b,shape_func_b_times_det_J_b_time_weight,grad_shape_func_b_x_times_det_J_b_time_weight, grad_shape_func_b_y_times_det_J_b_time_weight, shape_func_inter_times_det_J_b_time_weight = None, interface_source=None, grad_shape_func_z=None, grad_shape_func_z_times_det_J_time_weight=None, grad_shape_func_b_z_times_det_J_b_time_weight=None, normal_vector_z=None):
+    """
+    Assemble diffusion matrix and force vector for fuel cell problem.
+    
+    No numba needed - this function uses sparse matrix operations which are
+    already highly optimized in SciPy.
+    """
 
     # print('K1')
     K1 = ((grad_shape_func_x_times_det_J_time_weight).multiply(global_diffusion)).T*grad_shape_func_x+((grad_shape_func_y_times_det_J_time_weight).multiply(global_diffusion)).T*grad_shape_func_y
@@ -57,6 +63,11 @@ def diffusion_matrix_fuel_cell(dimention, point_or_line_source, shape_func_point
 
 def diffusion_matrix_fuel_cell_distributed_point_source(dimention, distributed_point_or_line_source, shape_func_distributed_point_or_line_nodes, g_diretchlet, beta_Nitsche, normal_vector_x, normal_vector_y, global_diffusion,grad_shape_func_x,grad_shape_func_y,grad_shape_func_x_times_det_J_time_weight,grad_shape_func_y_times_det_J_time_weight,\
                      shape_func_b,shape_func_b_times_det_J_b_time_weight,grad_shape_func_b_x_times_det_J_b_time_weight, grad_shape_func_b_y_times_det_J_b_time_weight, shape_func_inter_times_det_J_b_time_weight = None, interface_source=None, grad_shape_func_z=None, grad_shape_func_z_times_det_J_time_weight=None, grad_shape_func_b_z_times_det_J_b_time_weight=None, normal_vector_z=None):
+    """
+    Assemble diffusion matrix with distributed point sources.
+    
+    No numba needed - uses optimized sparse matrix operations.
+    """
 
     # print('K1')
     K1 = ((grad_shape_func_x_times_det_J_time_weight).multiply(global_diffusion)).T*grad_shape_func_x+((grad_shape_func_y_times_det_J_time_weight).multiply(global_diffusion)).T*grad_shape_func_y

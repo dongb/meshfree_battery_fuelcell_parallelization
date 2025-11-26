@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 
 from tqdm import tqdm
 
-from numba import jit
+# Removed numba import - using vectorized NumPy instead
 
 from scipy.sparse import csc_matrix, csr_matrix, bmat
 from scipy.sparse.linalg import spsolve
