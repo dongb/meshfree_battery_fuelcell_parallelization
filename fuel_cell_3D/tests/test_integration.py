@@ -73,17 +73,19 @@ class TestImageToNodesWorkflow:
         assert len(x_nodes_electrode) > 0
         assert len(x_nodes_pore) > 0
         
-        # Verify nodes are within domain
+        # Verify nodes are within domain (with small tolerance for floating point)
+        # Note: Nodes are created at pixel boundaries including far edges
+        tol = 1e-12
         for nodes in [x_nodes_mechanical, x_nodes_electrolyte, 
                       x_nodes_electrode, x_nodes_pore]:
             if len(nodes) > 0:
                 nodes_array = np.array(nodes)
-                assert np.all(nodes_array[:, 0] >= x_min)
-                assert np.all(nodes_array[:, 0] <= x_max)
-                assert np.all(nodes_array[:, 1] >= y_min)
-                assert np.all(nodes_array[:, 1] <= y_max)
-                assert np.all(nodes_array[:, 2] >= z_min)
-                assert np.all(nodes_array[:, 2] <= z_max)
+                assert np.all(nodes_array[:, 0] >= x_min - tol)
+                assert np.all(nodes_array[:, 0] <= x_max + tol)
+                assert np.all(nodes_array[:, 1] >= y_min - tol)
+                assert np.all(nodes_array[:, 1] <= y_max + tol)
+                assert np.all(nodes_array[:, 2] >= z_min - tol)
+                assert np.all(nodes_array[:, 2] <= z_max + tol)
 
 
 class TestGaussPointsToShapeFunctions:

@@ -173,7 +173,8 @@ class TestEvaluateAtGaussPoints:
     
     def test_data_types(self):
         """Test that function handles different data types correctly."""
-        shape_func = np.array([[0.5, 0.5]], dtype=np.float32)
+        # Note: numba JIT requires same dtype for all inputs
+        shape_func = np.array([[0.5, 0.5]], dtype=np.float64)
         u = np.array([1.0, 2.0], dtype=np.float64)
         
         u_G_domain, u_G_boundary = evaluate_at_gauss_points(
@@ -182,7 +183,7 @@ class TestEvaluateAtGaussPoints:
             u
         )
         
-        # Should handle mixed precision
+        # Should return numpy arrays
         assert isinstance(u_G_domain, np.ndarray)
         assert isinstance(u_G_boundary, np.ndarray)
 

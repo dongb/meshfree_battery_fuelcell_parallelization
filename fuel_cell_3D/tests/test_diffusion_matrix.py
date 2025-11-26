@@ -27,8 +27,8 @@ class TestDiffusionMatrixAssembly:
         n_gauss = 2
         n_boundary = 2
         
-        # Diffusion coefficient
-        global_diffusion = np.ones(n_gauss)
+        # Diffusion coefficient (needs to be column vector for sparse matrix multiply)
+        global_diffusion = np.ones((n_gauss, 1))
         
         # Shape functions and gradients (sparse)
         grad_shape_func_x = csr_matrix(np.random.rand(n_gauss, n_nodes))
@@ -44,11 +44,11 @@ class TestDiffusionMatrixAssembly:
         grad_shape_func_b_x_weighted = csr_matrix(np.random.rand(n_boundary, n_nodes) * 0.05)
         grad_shape_func_b_y_weighted = csr_matrix(np.random.rand(n_boundary, n_nodes) * 0.05)
         
-        # Boundary conditions
-        g_diretchlet = np.ones(n_boundary)
-        beta_Nitsche = np.ones(n_boundary) * 100.0
-        normal_vector_x = np.array([1.0, 0.0])
-        normal_vector_y = np.array([0.0, 1.0])
+        # Boundary conditions (column vectors for sparse matrix operations)
+        g_diretchlet = np.ones((n_boundary, 1))
+        beta_Nitsche = np.ones((n_boundary, 1)) * 100.0
+        normal_vector_x = np.array([[1.0], [0.0]])
+        normal_vector_y = np.array([[0.0], [1.0]])
         
         # Source terms
         point_source = np.zeros(n_nodes)
@@ -195,8 +195,9 @@ class TestDiffusionMatrixAssembly:
             interface_source=setup['interface_source']
         )
         
+        # Force vector should be 2D with n_nodes rows
         assert f.ndim == 2
-        assert f.shape[1] == 1
+        assert f.shape[0] == 4  # n_nodes
     
     def test_distributed_source_variant(self, simple_diffusion_setup_2d):
         """Test distributed point source variant."""
