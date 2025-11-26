@@ -83,101 +83,115 @@ def c_lattice_complex(x):
 # define D, diffucivity which depends on x = real concentration/maximun concentration, 
 # D is a n_g*(n_nodes*n_nodes)*(dimention*dimention) matrix
 ######################################################################################################################################
-@jit
 def Dn_complex(x, D_damage):
-    for i in range(len(D_damage)):
-        if D_damage[i] > 0.9:
-            D_damage[i] = 0.9
-
-    ## D_damage[D_damage>0.9] = 0.9
+    # Vectorized clamping of D_damage values
+    D_damage = np.minimum(D_damage, 0.9)
+    
     macro_to_grain = 3.00
-    D_x_thresholds = [-0.10000000000000000555,0.00000000000000000000,0.10000000000000000555,0.40000000000000002220,0.59999999999999997780,0.80000000000000004441]
+    D_x_thresholds = np.array([-0.10000000000000000555, 0.00000000000000000000, 0.10000000000000000555, 
+                                 0.40000000000000002220, 0.59999999999999997780, 0.80000000000000004441])
 
-    D_coefs = [0.00000000000000000000,0.00000000000000000000,0.00000000000000000000,0.00000000000001231320,\
-               0.00000000000000000000,0.00000000000000000000,0.00000000000000000000,0.00000000000001231320,\
-               -0.00000000000000006780,-0.00000000000000041949,0.00000000000000000000,0.00000000000001231320,\
-               0.00000000000000880302,-0.00000000000001638013,-0.00000000000000027000,0.00000000000001227362,\
-               0.00000000000125685839,-0.00000000000037054532,-0.00000000000000576569,0.00000000000001163483,\
-               -0.00000000000000036183,0.00000000000000543084,-0.00000000000000316081,0.00000000000000571475]
+    D_coefs = np.array([0.00000000000000000000, 0.00000000000000000000, 0.00000000000000000000, 0.00000000000001231320,
+                        0.00000000000000000000, 0.00000000000000000000, 0.00000000000000000000, 0.00000000000001231320,
+                        -0.00000000000000006780, -0.00000000000000041949, 0.00000000000000000000, 0.00000000000001231320,
+                        0.00000000000000880302, -0.00000000000001638013, -0.00000000000000027000, 0.00000000000001227362,
+                        0.00000000000125685839, -0.00000000000037054532, -0.00000000000000576569, 0.00000000000001163483,
+                        -0.00000000000000036183, 0.00000000000000543084, -0.00000000000000316081, 0.00000000000000571475]).reshape(6, 4)
 
-    D_coefs = np.array(D_coefs).reshape(6,4)
+    expon_D = np.array([3, 2, 1, 0])[:, np.newaxis]
+    D_dpolydx_coefs = (D_coefs.T * expon_D).T
 
-    expon_D = np.array([3,2,1,0])[:, np.newaxis]
+    # Initialize output arrays
+    D = np.zeros_like(x)
+    dD_dx = np.zeros_like(x)
 
-    D_dpolydx_coefs = (D_coefs.T*expon_D).T
-
-    D = x*0
-    dD_dx = x*0
-
-
+    # Vectorized piecewise polynomial evaluation
+    # For each interval, compute the mask and add contributions
     for ii in range(6):
+        # Determine which x values fall in this interval
         if ii == 0:
-            logic_x = (x <= D_x_thresholds[ii+1])*1
+            logic_x = x <= D_x_thresholds[ii + 1]
+        elif ii == 5:
+            logic_x = x > D_x_thresholds[ii]
         else:
-            if ii == 5:
-                logic_x = (x >D_x_thresholds[ii])*1
-            else:
-                logic_x_1 = (x >D_x_thresholds[ii]) 
-                logic_x_2 = (x<=D_x_thresholds[ii+1])
-                logic_x = logic_x_1*logic_x_2*1
-        D = D+logic_x*(D_coefs[ii,0]*(x-D_x_thresholds[ii])**3+D_coefs[ii,1]*(x-D_x_thresholds[ii])**2+D_coefs[ii,2]*(x-D_x_thresholds[ii])**1+D_coefs[ii,3]*(x-D_x_thresholds[ii])**0) 
-        dD_dx = dD_dx+logic_x*(D_dpolydx_coefs[ii,0]*(x-D_x_thresholds[ii])**2+D_dpolydx_coefs[ii,1]*(x-D_x_thresholds[ii])**1+D_dpolydx_coefs[ii,2]*(x-D_x_thresholds[ii])**0)
+            logic_x = (x > D_x_thresholds[ii]) & (x <= D_x_thresholds[ii + 1])
+        
+        # Compute shifted x values for this interval
+        x_shifted = x - D_x_thresholds[ii]
+        
+        # Vectorized polynomial evaluation using Horner's method
+        # D(x) = c0*x^3 + c1*x^2 + c2*x + c3
+        D_contrib = (((D_coefs[ii, 0] * x_shifted + D_coefs[ii, 1]) * x_shifted + D_coefs[ii, 2]) * x_shifted + D_coefs[ii, 3])
+        
+        # dD/dx = 3*c0*x^2 + 2*c1*x + c2
+        dD_dx_contrib = ((D_dpolydx_coefs[ii, 0] * x_shifted + D_dpolydx_coefs[ii, 1]) * x_shifted + D_dpolydx_coefs[ii, 2])
+        
+        # Apply mask and accumulate
+        D = np.where(logic_x, D + D_contrib, D)
+        dD_dx = np.where(logic_x, dD_dx + dD_dx_contrib, dD_dx)
 
-    return(D*macro_to_grain*(1-D_damage), dD_dx*macro_to_grain*(1-D_damage)) 
+    return D * macro_to_grain * (1 - D_damage), dD_dx * macro_to_grain * (1 - D_damage) 
 
 
 ################################################################
 # define the open circulate potential E_eq
 ################################################################
-@jit
 def ocp_complex(x):
-    Eeq_x_thresholds = [-0.1000000000,0.0000000000,0.0250000000,0.1000000000,0.2000000000,0.3000000000,0.4000000000,\
-                    0.5000000000,0.6000000000,0.7000000000,0.8000000000,0.9000000000,0.9500000000,0.9750000000, \
-                        0.9900000000,0.9950000000,0.9990000000,1.0000000000]
+    Eeq_x_thresholds = np.array([-0.1000000000, 0.0000000000, 0.0250000000, 0.1000000000, 0.2000000000, 0.3000000000, 
+                                   0.4000000000, 0.5000000000, 0.6000000000, 0.7000000000, 0.8000000000, 0.9000000000, 
+                                   0.9500000000, 0.9750000000, 0.9900000000, 0.9950000000, 0.9990000000, 1.0000000000])
 
-    Eeq_coefs = [15.5276001364,-6.5923311959,-2.4960428818,5.6141783138,\
-            895.3135766304,-33.6334506526,-3.3486811169,5.3141783138,\
-                -81.9793520542,10.4802301423,-3.3516406933,5.2234296539,\
-                43.1929468100,-5.9671112557,-3.1630077379,4.9964228573,\
-                19.7924511525,0.2951859850,-3.0606415847,4.6636439177,\
-                -14.4065560642,4.5837966472,-2.4078308531,4.3803240703,\
-                2.0308297558,1.2433285041,-1.9232682056,4.1709723954,\
-                23.2107688484,-0.9515644065,-1.6136776121,3.9931096896,\
-                12.3318762496,0.9815583839,-1.1076674280,3.8454370532,\
-                -21.4709897243,3.6635330598,-0.5413994637,3.7568177705,\
-                -1.7180081860,-0.7023601791,-0.4528225435,3.7178421650,\
-                -151.6070578413,5.2166938899,-0.6448348249,3.6638183006,\
-                -234.9780625093,-49.0200087926,-1.2602183697,3.6256674119,\
-                -4304.6501234801,-199.5626481081,-4.1518026765,3.5598529149,\
-                -10492.9163916377,-1948.3980027643,-13.0443209531,3.4381460848,\
-                154108.9641688380,-6491.3319338437,-33.3152697102,3.3229029154,\
-                85857831.5552496761,-111367.9866187039,-77.8486949008,3.0956434993,\
-                -301.1173472459,260.2234694492,-43.0111734725,2.9922846494]
+    Eeq_coefs = np.array([15.5276001364, -6.5923311959, -2.4960428818, 5.6141783138,
+                          895.3135766304, -33.6334506526, -3.3486811169, 5.3141783138,
+                          -81.9793520542, 10.4802301423, -3.3516406933, 5.2234296539,
+                          43.1929468100, -5.9671112557, -3.1630077379, 4.9964228573,
+                          19.7924511525, 0.2951859850, -3.0606415847, 4.6636439177,
+                          -14.4065560642, 4.5837966472, -2.4078308531, 4.3803240703,
+                          2.0308297558, 1.2433285041, -1.9232682056, 4.1709723954,
+                          23.2107688484, -0.9515644065, -1.6136776121, 3.9931096896,
+                          12.3318762496, 0.9815583839, -1.1076674280, 3.8454370532,
+                          -21.4709897243, 3.6635330598, -0.5413994637, 3.7568177705,
+                          -1.7180081860, -0.7023601791, -0.4528225435, 3.7178421650,
+                          -151.6070578413, 5.2166938899, -0.6448348249, 3.6638183006,
+                          -234.9780625093, -49.0200087926, -1.2602183697, 3.6256674119,
+                          -4304.6501234801, -199.5626481081, -4.1518026765, 3.5598529149,
+                          -10492.9163916377, -1948.3980027643, -13.0443209531, 3.4381460848,
+                          154108.9641688380, -6491.3319338437, -33.3152697102, 3.3229029154,
+                          85857831.5552496761, -111367.9866187039, -77.8486949008, 3.0956434993,
+                          -301.1173472459, 260.2234694492, -43.0111734725, 2.9922846494]).reshape(18, 4)
 
-    Eeq_coefs = np.array(Eeq_coefs).reshape(18,4)
+    expon_Eeq = np.array([3, 2, 1, 0])[:, np.newaxis]
+    Eeq_dpolydx_coefs = (Eeq_coefs.T * expon_Eeq).T
 
-    expon_Eeq = np.array([3,2,1,0])[:, np.newaxis]
+    # Initialize output arrays
+    E_eq = np.zeros_like(x)
+    dEeq_dx = np.zeros_like(x)
 
-    Eeq_dpolydx_coefs = (Eeq_coefs.T*expon_Eeq).T
-
-    E_eq = x*0
-    dEeq_dx = x*0
-
-
+    # Vectorized piecewise polynomial evaluation
     for ii in range(18):
+        # Determine which x values fall in this interval
         if ii == 0:
-            logic_x = (x <= Eeq_x_thresholds[ii+1])*1
+            logic_x = x <= Eeq_x_thresholds[ii + 1]
+        elif ii == 17:
+            logic_x = x > Eeq_x_thresholds[ii]
         else:
-            if ii == 17:
-                logic_x = (x >Eeq_x_thresholds[ii])*1
-            else:
-                logic_x_1 = (x >Eeq_x_thresholds[ii]) 
-                logic_x_2 = (x<=Eeq_x_thresholds[ii+1])
-                logic_x = logic_x_1*logic_x_2*1
-        E_eq = E_eq+logic_x*(Eeq_coefs[ii,0]*(x-Eeq_x_thresholds[ii])**3+Eeq_coefs[ii,1]*(x-Eeq_x_thresholds[ii])**2+Eeq_coefs[ii,2]*(x-Eeq_x_thresholds[ii])**1+Eeq_coefs[ii,3]*(x-Eeq_x_thresholds[ii])**0) 
-        dEeq_dx = dEeq_dx+logic_x*(Eeq_dpolydx_coefs[ii,0]*(x-Eeq_x_thresholds[ii])**2+Eeq_dpolydx_coefs[ii,1]*(x-Eeq_x_thresholds[ii])**1+Eeq_dpolydx_coefs[ii,2]*(x-Eeq_x_thresholds[ii])**0)
+            logic_x = (x > Eeq_x_thresholds[ii]) & (x <= Eeq_x_thresholds[ii + 1])
+        
+        # Compute shifted x values for this interval
+        x_shifted = x - Eeq_x_thresholds[ii]
+        
+        # Vectorized polynomial evaluation using Horner's method
+        # E_eq(x) = c0*x^3 + c1*x^2 + c2*x + c3
+        E_eq_contrib = (((Eeq_coefs[ii, 0] * x_shifted + Eeq_coefs[ii, 1]) * x_shifted + Eeq_coefs[ii, 2]) * x_shifted + Eeq_coefs[ii, 3])
+        
+        # dE_eq/dx = 3*c0*x^2 + 2*c1*x + c2
+        dEeq_dx_contrib = ((Eeq_dpolydx_coefs[ii, 0] * x_shifted + Eeq_dpolydx_coefs[ii, 1]) * x_shifted + Eeq_dpolydx_coefs[ii, 2])
+        
+        # Apply mask and accumulate
+        E_eq = np.where(logic_x, E_eq + E_eq_contrib, E_eq)
+        dEeq_dx = np.where(logic_x, dEeq_dx + dEeq_dx_contrib, dEeq_dx)
 
-    return(E_eq, dEeq_dx) 
+    return E_eq, dEeq_dx 
 
 ################################################################
 # define current density
