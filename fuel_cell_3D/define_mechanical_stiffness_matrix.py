@@ -67,6 +67,15 @@ def mechanical_C_tensor_3d(num_gauss_points_in_domain, D_damage, lambda_mechanic
         C64_ini = 0
         C65_ini = 0
 
+        # Create C_ini matrix for scalar case
+        C_ini = np.array([[C11_ini, C12_ini, C13_ini, C14_ini, C15_ini, C16_ini], \
+                          [C21_ini, C22_ini, C23_ini, C24_ini, C25_ini, C26_ini], \
+                          [C31_ini, C32_ini, C33_ini, C34_ini, C35_ini, C36_ini], \
+                          [C41_ini, C42_ini, C43_ini, C44_ini, C45_ini, C46_ini], \
+                          [C51_ini, C52_ini, C53_ini, C54_ini, C55_ini, C56_ini], \
+                          [C61_ini, C62_ini, C63_ini, C64_ini, C65_ini, C66_ini], \
+                            ])
+
     else:
         C14_ini = np.zeros(num_gauss_points_in_domain)
         C15_ini = np.zeros(num_gauss_points_in_domain)
