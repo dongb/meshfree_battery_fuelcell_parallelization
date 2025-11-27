@@ -1,14 +1,11 @@
 import tkinter as tk
-from tkinter import filedialog
 import os
 import subprocess
 # from tkinter.ttk import Notebook, Frame, Style, WebBrowserTab
 import tkinter as tk
-from tkinter import filedialog
 from tkinter import scrolledtext
 import subprocess
 import os
-import tempfile
 
 
 """

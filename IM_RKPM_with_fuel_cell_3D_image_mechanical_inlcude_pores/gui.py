@@ -1,9 +1,7 @@
 import tkinter as tk
-from tkinter import filedialog
 from tkinter import scrolledtext
 import subprocess
 import os
-import tempfile
 
 def load_preset_values(preset_file_path):
     # Initialize variables

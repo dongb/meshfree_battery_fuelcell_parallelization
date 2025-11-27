@@ -1,5 +1,4 @@
 from common import np
-# Removed numba import - NumPy matrix multiplication is already optimized
 
 
 def evaluate_at_gauss_points(shape_func, shape_func_b, u):

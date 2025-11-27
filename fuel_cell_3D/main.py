@@ -2,14 +2,12 @@ import time
 start_time = time.time()
 from common import np
 
-import scipy.sparse as sp
+import common as sp
 
 import matplotlib.pyplot as plt
 
-# Removed numba imports - all functions are now vectorized using NumPy
-
-from scipy.sparse import csc_matrix, csr_matrix, bmat, block_diag,vstack
-from scipy.sparse.linalg import spsolve
+from common import csc_matrix, csr_matrix, bmat, block_diag,vstack
+from common import spsolve
 
 
 from get_nodes_gauss_points import x_G_and_def_J_time_weight_3d_fuelcell_domain, x_G_b_and_det_J_b_time_weight_3d_fuelcell_2d_boundary,x_G_b_and_det_J_b_time_weight_3d_fuelcell_2d_boundary_interface, x_G_and_det_J_line_3d_fuelcell_1d_boundary, get_x_nodes_fuel_cell_3d_toy_image

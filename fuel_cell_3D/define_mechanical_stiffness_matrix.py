@@ -1,7 +1,7 @@
 from common import np
-import scipy.sparse as sp
+import common as sp
 
-from scipy.sparse import bmat
+from common import bmat
 
 
 

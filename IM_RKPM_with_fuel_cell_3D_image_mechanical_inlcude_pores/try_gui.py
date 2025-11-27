@@ -1,4 +1,3 @@
-from tkinter import messagebox, ttk
 import tkinter as tk
 
 # def display_selection():
