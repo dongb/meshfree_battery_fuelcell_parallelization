@@ -1,19 +1,7 @@
-import time
 from common import np
-from numpy import sign
-
-import matplotlib.pyplot as plt
-
-from tqdm import tqdm
-
-# Removed numba import - not needed for this file
 import scipy.sparse as sp
 
-from scipy.sparse import csc_matrix, csr_matrix, bmat
-from scipy.sparse.linalg import spsolve
-from scipy.sparse.linalg import eigs
-
-from numpy.linalg import norm, eig
+from scipy.sparse import bmat
 
 
 

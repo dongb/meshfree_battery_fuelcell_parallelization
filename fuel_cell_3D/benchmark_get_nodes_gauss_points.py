@@ -7,11 +7,6 @@ against the original implementation (if available).
 
 import time
 from common import np
-import sys
-from pathlib import Path
-
-# Add parent directory to path
-sys.path.insert(0, str(Path(__file__).parent))
 
 from get_nodes_gauss_points import (
     get_x_nodes_fuel_cell_3d_toy_image,

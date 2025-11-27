@@ -1,22 +1,15 @@
 import time
 start_time = time.time()
 from common import np
-from numpy import sign
 
 import scipy.sparse as sp
 
 import matplotlib.pyplot as plt
 
-from tqdm import tqdm
-
 # Removed numba imports - all functions are now vectorized using NumPy
-import scipy.sparse as sp
 
 from scipy.sparse import csc_matrix, csr_matrix, bmat, block_diag,vstack
 from scipy.sparse.linalg import spsolve
-from scipy.sparse.linalg import eigs
-
-from numpy.linalg import norm, eig
 
 
 from get_nodes_gauss_points import x_G_and_def_J_time_weight_3d_fuelcell_domain, x_G_b_and_det_J_b_time_weight_3d_fuelcell_2d_boundary,x_G_b_and_det_J_b_time_weight_3d_fuelcell_2d_boundary_interface, x_G_and_det_J_line_3d_fuelcell_1d_boundary, get_x_nodes_fuel_cell_3d_toy_image
@@ -27,8 +20,6 @@ from define_mechanical_stiffness_matrix import mechanical_stiffness_matrix_3d_fu
 from define_diffusion_matrix_form import diffusion_matrix_fuel_cell, diffusion_matrix_fuel_cell_distributed_point_source
 
 from read_image import read_in_image
-
-from scipy.sparse.linalg import inv
 
 ###################################
 # define geometry and analysis type 

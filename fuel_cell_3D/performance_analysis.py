@@ -8,13 +8,8 @@ to identify optimization opportunities.
 
 import time
 from common import np
-import sys
 import tracemalloc
-from pathlib import Path
 from collections import defaultdict
-
-# Add parent directory to path
-sys.path.insert(0, str(Path(__file__).parent))
 
 from get_nodes_gauss_points import (
     get_x_nodes_fuel_cell_3d_toy_image,
@@ -224,7 +219,8 @@ def analyze_matrix_assembly_complexity():
     for n in matrix_sizes:
         # Sparse matrix creation
         start = time.perf_counter()
-        from scipy.sparse import csr_matrix
+    from scipy.sparse import csr_matrix
+    from scipy.sparse.linalg import spsolve
         # Simulate creating sparse matrix with ~10% density
         nnz = int(n * n * 0.1)
         row = np.random.randint(0, n, nnz)
@@ -240,8 +236,8 @@ def analyze_matrix_assembly_complexity():
         elapsed_matvec = time.perf_counter() - start
         
         # Solve (using simple iteration to estimate)
-        start = time.perf_counter()
         from scipy.sparse.linalg import spsolve
+        start = time.perf_counter()
         try:
             u = spsolve(K, x)
             elapsed_solve = time.perf_counter() - start
@@ -334,23 +330,23 @@ def identify_bottlenecks():
     
     # 4. Sparse matrix assembly (simulated)
     print("\nStep 4: Sparse Matrix Assembly (simulated)...")
+    from scipy.sparse import csr_matrix
     n = n_nodes * 3  # 3 DOF per node
     nnz = int(n * 50)  # ~50 non-zeros per row
-    start = time.perf_counter()
-    from scipy.sparse import csr_matrix
     row = np.random.randint(0, n, nnz)
     col = np.random.randint(0, n, nnz)
     data = np.random.rand(nnz)
+    start = time.perf_counter()
     K = csr_matrix((data, (row, col)), shape=(n, n))
     timings['matrix_assembly'] = time.perf_counter() - start
     print(f"  Time: {timings['matrix_assembly']:.4f} s")
     
     # 5. Linear solve (simulated)
     print("\nStep 5: Linear System Solve (simulated)...")
+    from scipy.sparse.linalg import spsolve
     K = K + csr_matrix(np.eye(n) * 1e6)  # Make it well-conditioned
     f = np.random.rand(n)
     start = time.perf_counter()
-    from scipy.sparse.linalg import spsolve
     u = spsolve(K, f)
     timings['linear_solve'] = time.perf_counter() - start
     print(f"  Time: {timings['linear_solve']:.4f} s")

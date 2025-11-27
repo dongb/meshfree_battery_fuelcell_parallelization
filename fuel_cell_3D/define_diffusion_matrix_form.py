@@ -1,21 +1,4 @@
-import time
-start_time = time.time()
 from common import np
-from numpy import sign
-
-import matplotlib.pyplot as plt
-
-from tqdm import tqdm
-
-# Removed numba import - not needed for this file
-import scipy.sparse as sp
-
-from scipy.sparse import csc_matrix, csr_matrix, bmat
-from scipy.sparse.linalg import spsolve
-from scipy.sparse.linalg import eigs
-
-from numpy.linalg import norm, eig
-
 
 def diffusion_matrix_fuel_cell(dimention, point_or_line_source, shape_func_point_or_line_nodes, g_diretchlet, beta_Nitsche, normal_vector_x, normal_vector_y, global_diffusion,grad_shape_func_x,grad_shape_func_y,grad_shape_func_x_times_det_J_time_weight,grad_shape_func_y_times_det_J_time_weight,\
                      shape_func_b,shape_func_b_times_det_J_b_time_weight,grad_shape_func_b_x_times_det_J_b_time_weight, grad_shape_func_b_y_times_det_J_b_time_weight, shape_func_inter_times_det_J_b_time_weight = None, interface_source=None, grad_shape_func_z=None, grad_shape_func_z_times_det_J_time_weight=None, grad_shape_func_b_z_times_det_J_b_time_weight=None, normal_vector_z=None):
