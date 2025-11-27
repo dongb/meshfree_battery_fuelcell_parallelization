@@ -3,7 +3,7 @@ Integration tests for the fuel_cell_3D simulation package.
 Tests the interaction between different modules.
 """
 import pytest
-import numpy as np
+from common import np
 import tempfile
 import os
 import sys

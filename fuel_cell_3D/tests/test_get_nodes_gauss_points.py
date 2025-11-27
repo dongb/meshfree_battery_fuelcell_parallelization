@@ -2,7 +2,7 @@
 Unit tests for node and Gauss point generation functions.
 """
 import pytest
-import numpy as np
+from common import np
 import sys
 from pathlib import Path
 

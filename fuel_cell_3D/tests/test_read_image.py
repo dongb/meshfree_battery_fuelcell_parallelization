@@ -3,7 +3,7 @@ Unit tests for read_image module.
 Tests image reading functionality for fuel cell microstructure.
 """
 import pytest
-import numpy as np
+from common import np
 import tifffile
 import tempfile
 import os

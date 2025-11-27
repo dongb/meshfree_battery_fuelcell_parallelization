@@ -2,7 +2,7 @@
 Pytest configuration and shared fixtures for fuel_cell_3D tests.
 """
 import pytest
-import numpy as np
+from common import np
 import tempfile
 import os
 import tifffile

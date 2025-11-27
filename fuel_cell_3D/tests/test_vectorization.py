@@ -4,7 +4,7 @@ These tests specifically validate the vectorized implementation's correctness
 for both 2D and 3D cases, including partition of unity checks.
 """
 import pytest
-import numpy as np
+from common import np
 import sys
 from pathlib import Path
 

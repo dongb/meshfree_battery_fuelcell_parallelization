@@ -1,4 +1,4 @@
-import numpy as np
+from common import np
 # Removed numba import - NumPy matrix multiplication is already optimized
 
 

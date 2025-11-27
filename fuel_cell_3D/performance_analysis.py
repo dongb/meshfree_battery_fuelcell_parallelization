@@ -7,7 +7,7 @@ to identify optimization opportunities.
 """
 
 import time
-import numpy as np
+from common import np
 import sys
 import tracemalloc
 from pathlib import Path

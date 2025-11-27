@@ -1,4 +1,4 @@
-import numpy as np
+from common import np
 from numba import jit
 
 

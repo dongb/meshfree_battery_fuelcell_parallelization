@@ -4,7 +4,7 @@ Test script to validate the vectorization of define_buttler_volmer.py
 Compares the vectorized version against the original implementation
 """
 
-import numpy as np
+from common import np
 import time
 import sys
 from pathlib import Path

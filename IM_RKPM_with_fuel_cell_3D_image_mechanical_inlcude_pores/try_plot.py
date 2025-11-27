@@ -2,7 +2,7 @@ a = 'True'
 b = 'True'
 print(a== 'True' and b=='True')
 
-import numpy as np
+from common import np
 
 aa = np.array([])
 

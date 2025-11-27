@@ -2,7 +2,7 @@
 Unit tests for evaluation at Gauss points.
 """
 import pytest
-import numpy as np
+from common import np
 import sys
 from pathlib import Path
 

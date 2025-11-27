@@ -1,5 +1,5 @@
 import time
-import numpy as np
+from common import np
 from numpy import sign
 
 import matplotlib.pyplot as plt

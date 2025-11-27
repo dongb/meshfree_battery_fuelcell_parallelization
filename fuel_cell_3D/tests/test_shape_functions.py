@@ -2,7 +2,7 @@
 Unit tests for shape function computation and gradient calculations.
 """
 import pytest
-import numpy as np
+from common import np
 import sys
 from pathlib import Path
 from scipy.sparse import csr_matrix

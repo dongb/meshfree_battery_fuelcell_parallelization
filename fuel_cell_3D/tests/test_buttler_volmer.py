@@ -2,7 +2,7 @@
 Unit tests for Butler-Volmer equations and material property functions.
 """
 import pytest
-import numpy as np
+from common import np
 import sys
 from pathlib import Path
 

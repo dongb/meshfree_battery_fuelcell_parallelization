@@ -1,4 +1,4 @@
-import numpy as np
+from common import np
 import scipy.sparse as sp
 from scipy.sparse import csc_matrix
 import matplotlib.pyplot as plt

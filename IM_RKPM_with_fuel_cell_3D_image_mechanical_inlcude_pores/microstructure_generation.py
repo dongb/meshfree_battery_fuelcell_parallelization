@@ -1,5 +1,5 @@
 import tifffile
-import numpy as np
+from common import np
 from scipy.ndimage import label, generate_binary_structure
 
 # simple 2d with 3-phase

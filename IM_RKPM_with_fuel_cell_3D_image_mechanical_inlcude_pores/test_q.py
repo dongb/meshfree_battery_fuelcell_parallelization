@@ -1,4 +1,4 @@
-import numpy as np
+from common import np
 from scipy.sparse import csc_matrix
 
 # arr_small = np.array([[1, 2, 3],

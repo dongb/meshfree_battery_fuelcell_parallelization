@@ -2,7 +2,7 @@
 Unit tests for mechanical stiffness matrix assembly.
 """
 import pytest
-import numpy as np
+from common import np
 import scipy.sparse as sp
 from scipy.sparse import csr_matrix
 import sys

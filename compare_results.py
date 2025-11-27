@@ -4,7 +4,7 @@ Script to compare numeric values in text files between res.std and res.out direc
 """
 
 import os
-import numpy as np
+from common import np
 from pathlib import Path
 import sys
 

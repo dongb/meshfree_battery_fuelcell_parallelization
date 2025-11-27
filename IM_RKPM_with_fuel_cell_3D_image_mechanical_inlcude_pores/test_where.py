@@ -1,4 +1,4 @@
-import numpy as np
+from common import np
 
 aa = np.array([1,2])
 bb = np.array([[1,2], [3,4],[5,6]])
