@@ -1,4 +1,15 @@
-from common import np
+from common import np, use_cupy
+
+
+def _to_hashable(arr):
+    """Convert array to hashable tuple for set operations."""
+    if use_cupy and hasattr(arr, 'get'):
+        arr = arr.get()
+    if isinstance(arr, tuple):
+        return arr
+    if hasattr(arr, 'tolist'):
+        return tuple(arr.tolist())
+    return tuple(arr)
 
 
 
@@ -93,7 +104,7 @@ def get_x_nodes_fuel_cell_3d_toy_image(x_min,x_max,y_min,y_max,z_min, z_max, num
         ]
         for corner in corners:
             ci, cj, ck = corner
-            node = (x_coords[ci], y_coords[cj], z_coords[ck])
+            node = _to_hashable(np.array([x_coords[ci], y_coords[cj], z_coords[ck]]))
             nodes_mechanical_set.add(node)
     
     # Process fixed nodes (j==0 and k==0) - vectorized
@@ -164,8 +175,8 @@ def get_x_nodes_fuel_cell_3d_toy_image(x_min,x_max,y_min,y_max,z_min, z_max, num
                 if (0 in unique_ids and 1 in unique_ids):
                     # Calculate edge endpoints
                     c1, c2 = edge_coords
-                    segment = (x_coords[i+c1[0]], y_coords[j+c1[1]], z_coords[k+c1[2]],
-                              x_coords[i+c2[0]], y_coords[j+c2[1]], z_coords[k+c2[2]])
+                    segment = _to_hashable(np.array([x_coords[i+c1[0]], y_coords[j+c1[1]], z_coords[k+c1[2]],
+                                                      x_coords[i+c2[0]], y_coords[j+c2[1]], z_coords[k+c2[2]]]))
                     segments_source_set.add(segment)
         
         # Add nodes
@@ -175,7 +186,8 @@ def get_x_nodes_fuel_cell_3d_toy_image(x_min,x_max,y_min,y_max,z_min, z_max, num
         ]
         for corner in corners:
             ci, cj, ck = corner
-            nodes_electrolyte_set.add((x_coords[ci], y_coords[cj], z_coords[ck]))
+            node = _to_hashable(np.array([x_coords[ci], y_coords[cj], z_coords[ck]]))
+            nodes_electrolyte_set.add(node)
         
         # Check interface with electrode (6 faces)
         face_checks = [
@@ -226,7 +238,8 @@ def get_x_nodes_fuel_cell_3d_toy_image(x_min,x_max,y_min,y_max,z_min, z_max, num
         ]
         for corner in corners:
             ci, cj, ck = corner
-            nodes_electrode_set.add((x_coords[ci], y_coords[cj], z_coords[ck]))
+            node = _to_hashable(np.array([x_coords[ci], y_coords[cj], z_coords[ck]]))
+            nodes_electrode_set.add(node)
         
         # Check interface with pore (6 faces)
         for offset, face_corners in face_checks:
@@ -268,7 +281,8 @@ def get_x_nodes_fuel_cell_3d_toy_image(x_min,x_max,y_min,y_max,z_min, z_max, num
         ]
         for corner in corners:
             ci, cj, ck = corner
-            nodes_pore_set.add((x_coords[ci], y_coords[cj], z_coords[ck]))
+            node = _to_hashable(np.array([x_coords[ci], y_coords[cj], z_coords[ck]]))
+            nodes_pore_set.add(node)
     
     # Convert sets to sorted lists
     x_nodes_mechanical = sorted(list(nodes_mechanical_set))

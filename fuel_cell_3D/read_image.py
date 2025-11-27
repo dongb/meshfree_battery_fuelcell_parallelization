@@ -28,15 +28,18 @@ def read_in_image(file_name, studied_physics, dimention):
     Returns:
     --------
     img_ : ndarray
-        Image array
+        Image array (numpy or cupy depending on backend)
     unic_grain_id : list
         Unique grain IDs in the image
     num_pixels_xyz : list
         Number of pixels in each direction
     """
-    img_ = tifffile.imread(file_name)  # np array
+    img_ = tifffile.imread(file_name)  # Always returns numpy array
+    
+    # Convert to the appropriate backend (CuPy or NumPy)
+    img_ = np.asarray(img_)
 
-    grain_id_counter = Counter(img_.flatten())
+    grain_id_counter = Counter(img_.flatten() if not hasattr(img_, 'get') else img_.get().flatten())
     unic_grain_id = []  # save the unique grain IDs. For fuel cell, 0: pore, 1: electrolyte, 2: electrode.
 
     for key in grain_id_counter:

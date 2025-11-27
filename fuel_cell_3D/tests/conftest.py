@@ -2,7 +2,7 @@
 Pytest configuration and shared fixtures for fuel_cell_3D tests.
 """
 import pytest
-from common import np
+from common import np, use_cupy, csr_matrix, csc_matrix, bmat, block_diag, vstack, diags
 import tempfile
 import os
 import tifffile
@@ -75,7 +75,7 @@ def temp_test_image_3d():
     img[3, :, :] = 2    # electrolyte
     
     with tempfile.NamedTemporaryFile(suffix='.tif', delete=False) as tmp:
-        tifffile.imwrite(tmp.name, img)
+        save_image(tmp.name, img)
         yield tmp.name
     
     # Cleanup
@@ -109,6 +109,44 @@ def pytest_configure(config):
 
 # Helper functions for tests
 
+def to_cpu(arr):
+    """Convert array to CPU (NumPy) if it's a CuPy array."""
+    if use_cupy and hasattr(arr, 'get'):
+        return arr.get()
+    return arr
+
+
+def to_hashable(arr):
+    """Convert array to hashable tuple for set operations."""
+    arr_cpu = to_cpu(arr)
+    return tuple(arr_cpu.tolist() if hasattr(arr_cpu, 'tolist') else arr_cpu)
+
+
+def save_image(filename, img):
+    """Save image to file, converting from CuPy to NumPy if needed."""
+    img_cpu = to_cpu(img)
+    tifffile.imwrite(filename, img_cpu)
+
+
+def is_scalar_or_zero_d(val):
+    """Check if value is a scalar (works with both NumPy and CuPy)."""
+    if isinstance(val, (int, float, complex)):
+        return True
+    if hasattr(val, 'ndim'):
+        return val.ndim == 0 or (val.ndim == 1 and len(val) == 1)
+    return False
+
+
+def to_scalar(val):
+    """Convert to Python scalar (works with both NumPy and CuPy)."""
+    if isinstance(val, (int, float, complex)):
+        return val
+    val_cpu = to_cpu(val)
+    if hasattr(val_cpu, 'item'):
+        return val_cpu.item()
+    return float(val_cpu)
+
+
 def create_simple_shape_functions(n_gauss, n_nodes, normalized=True):
     """Create simple shape functions for testing."""
     shape_func = np.random.rand(n_gauss, n_nodes)
@@ -126,4 +164,5 @@ def verify_partition_of_unity(shape_func, tol=0.1):
 def create_test_concentration_field(n_nodes, c_min=0.0, c_max=1.0):
     """Create a test concentration field."""
     return np.linspace(c_min, c_max, n_nodes)
+
 

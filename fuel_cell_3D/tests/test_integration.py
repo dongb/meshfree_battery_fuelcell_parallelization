@@ -3,15 +3,22 @@ Integration tests for the fuel_cell_3D simulation package.
 Tests the interaction between different modules.
 """
 import pytest
-from common import np
+from common import np, use_cupy
 import tempfile
 import os
 import sys
 from pathlib import Path
-import tifffile
 
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
+
+
+def _save_image(filename, img):
+    """Save image to file, converting from CuPy to NumPy if needed."""
+    import tifffile
+    if use_cupy and hasattr(img, 'get'):
+        img = img.get()
+    tifffile.imwrite(filename, img)
 
 from read_image import read_in_image
 from get_nodes_gauss_points import (
@@ -35,7 +42,7 @@ class TestImageToNodesWorkflow:
         img[3:5, :, :] = 2  # electrolyte
         
         with tempfile.NamedTemporaryFile(suffix='.tif', delete=False) as tmp:
-            tifffile.imwrite(tmp.name, img)
+            _save_image(tmp.name, img)
             yield tmp.name
         
         os.unlink(tmp.name)

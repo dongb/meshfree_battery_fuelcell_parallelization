@@ -2,9 +2,7 @@
 Unit tests for mechanical stiffness matrix assembly.
 """
 import pytest
-from common import np
-import scipy.sparse as sp
-from scipy.sparse import csr_matrix
+from common import np, csr_matrix, sparse
 import sys
 from pathlib import Path
 
@@ -257,7 +255,7 @@ class TestMechanicalStiffnessMatrix:
         )
         
         # Check that K is sparse matrix
-        assert sp.issparse(K)
+        assert sparse.issparse(K)
         
         # Check that K is square
         assert K.shape[0] == K.shape[1]

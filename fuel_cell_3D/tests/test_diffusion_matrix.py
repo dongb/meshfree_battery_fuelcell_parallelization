@@ -2,9 +2,7 @@
 Unit tests for diffusion matrix assembly.
 """
 import pytest
-from common import np
-import scipy.sparse as sp
-from scipy.sparse import csr_matrix
+from common import np, csr_matrix, sparse
 import sys
 from pathlib import Path
 
@@ -103,7 +101,7 @@ class TestDiffusionMatrixAssembly:
         )
         
         # Check types
-        assert sp.issparse(K)
+        assert sparse.issparse(K)
         assert isinstance(f, np.ndarray)
         
         # Check dimensions
@@ -227,7 +225,7 @@ class TestDiffusionMatrixAssembly:
             interface_source=setup['interface_source']
         )
         
-        assert sp.issparse(K)
+        assert sparse.issparse(K)
         assert isinstance(f, np.ndarray)
 
 

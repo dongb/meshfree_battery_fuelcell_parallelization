@@ -503,9 +503,16 @@ def shape_func_n_nodes_by_n_nodes(x_G,x_nodes, num_non_zero_phi_a,HT0, M, phi_no
 
         H_sacling_factor = 1.0e-6
         if np.shape(M)[1] == 3:
-            H_T = np.array([1, (x_G[i][0]-x_I[0])/H_sacling_factor, (x_G[i][1]-x_I[1])/H_sacling_factor],dtype=np.float64)
+            # Extract scalar values to avoid implicit conversion issues with CuPy
+            x_diff = float((x_G[i][0]-x_I[0])/H_sacling_factor)
+            y_diff = float((x_G[i][1]-x_I[1])/H_sacling_factor)
+            H_T = np.array([1.0, x_diff, y_diff], dtype=np.float64)
         if np.shape(M)[1] == 4:
-            H_T = np.array([1, (x_G[i][0]-x_I[0])/H_sacling_factor, (x_G[i][1]-x_I[1])/H_sacling_factor, (x_G[i][2]-x_I[2])/H_sacling_factor],dtype=np.float64)
+            # Extract scalar values to avoid implicit conversion issues with CuPy
+            x_diff = float((x_G[i][0]-x_I[0])/H_sacling_factor)
+            y_diff = float((x_G[i][1]-x_I[1])/H_sacling_factor)
+            z_diff = float((x_G[i][2]-x_I[2])/H_sacling_factor)
+            H_T = np.array([1.0, x_diff, y_diff, z_diff], dtype=np.float64)
         
         H = np.transpose(H_T)
 
@@ -513,6 +520,6 @@ def shape_func_n_nodes_by_n_nodes(x_G,x_nodes, num_non_zero_phi_a,HT0, M, phi_no
 
         shape_func_value.append(shape_func_ij)
        
-    return shape_func_value
+    return np.array(shape_func_value)
 
 

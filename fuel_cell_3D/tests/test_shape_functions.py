@@ -275,8 +275,11 @@ class TestShapeGradShapeFunc:
         
         shape_func_val = result[0]
         
-        # All values should be finite
-        assert np.all(np.isfinite(shape_func_val))
+        # All values should be finite - convert to list first if needed for CuPy compatibility
+        if hasattr(shape_func_val, '__iter__'):
+            assert all(np.isfinite(val) for val in shape_func_val)
+        else:
+            assert np.isfinite(shape_func_val)
     
     def test_weighted_values(self, shape_func_setup):
         """Test that weighted values are correctly computed."""

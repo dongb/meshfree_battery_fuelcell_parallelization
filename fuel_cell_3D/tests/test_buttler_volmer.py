@@ -144,9 +144,10 @@ class TestButlerVolmerFunctions:
         
         dibv_deta, dibv_di0, i_bv = i_se(p_s, j0, E_eq, Fday, R, Tk)
         
-        assert isinstance(dibv_deta, (float, np.floating))
-        assert isinstance(dibv_di0, (float, np.floating))
-        assert isinstance(i_bv, (float, np.floating))
+        # Use backend-agnostic checking - just check they are numeric
+        assert hasattr(dibv_deta, '__float__') or hasattr(dibv_deta, 'item')
+        assert hasattr(dibv_di0, '__float__') or hasattr(dibv_di0, 'item')
+        assert hasattr(i_bv, '__float__') or hasattr(i_bv, 'item')
     
     def test_i_se_zero_overpotential(self):
         """Test current density at zero overpotential."""
