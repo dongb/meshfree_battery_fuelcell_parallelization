@@ -356,7 +356,9 @@ def x_G_and_def_J_time_weight_3d_fuelcell_domain(cell_nodes_x, cell_nodes_y, cel
     n_cells = cell_nodes_x.shape[0]
     n_gauss = len(x_G_domain)
     
-    x_G = []
+    x_G_list = []
+    y_G_list = []
+    z_G_list = []
     det_J_time_weight = []
     
     # Convert Gauss points to array for vectorization
@@ -389,7 +391,9 @@ def x_G_and_def_J_time_weight_3d_fuelcell_domain(cell_nodes_x, cell_nodes_y, cel
             x_G_k = np.dot(N, x_ver)
             y_G_k = np.dot(N, y_ver)
             z_G_k = np.dot(N, z_ver)
-            x_G.append([x_G_k, y_G_k, z_G_k])
+            x_G_list.append(x_G_k)
+            y_G_list.append(y_G_k)
+            z_G_list.append(z_G_k)
             
             # Shape function derivatives w.r.t. reference coordinates
             dN_dxi = np.array([
@@ -442,6 +446,14 @@ def x_G_and_def_J_time_weight_3d_fuelcell_domain(cell_nodes_x, cell_nodes_y, cel
             
             det_J_time_weight.append(np.linalg.det(J) * weights[k])
     
+    # Stack coordinates into array
+    if x_G_list:
+        x_G = np.stack([np.array(x_G_list), np.array(y_G_list), np.array(z_G_list)], axis=1)
+        det_J_time_weight = np.array(det_J_time_weight)
+    else:
+        x_G = np.empty((0, 3))
+        det_J_time_weight = np.empty(0)
+    
     return x_G, det_J_time_weight
 
 
@@ -477,7 +489,9 @@ def x_G_b_and_det_J_b_time_weight_3d_fuelcell_2d_boundary(cell_nodes_boundary_x,
     n_cells = cell_nodes_boundary_x.shape[0]
     n_gauss = len(x_G_domain)
     
-    x_G = []
+    x_G_list = []
+    y_G_list = []
+    z_G_list = []
     det_J_time_weight = []
     
     xi_eta = np.array(x_G_domain)  # (n_gauss, 2)
@@ -502,7 +516,9 @@ def x_G_b_and_det_J_b_time_weight_3d_fuelcell_2d_boundary(cell_nodes_boundary_x,
             z_G_k = np.dot(N, z_ver)
             y_G_k = y_coords_on_boundary
             
-            x_G.append([x_G_k, y_G_k, z_G_k])
+            x_G_list.append(x_G_k)
+            y_G_list.append(y_G_k)
+            z_G_list.append(z_G_k)
             
             # Shape function derivatives
             dN_dxi = np.array([
@@ -527,6 +543,14 @@ def x_G_b_and_det_J_b_time_weight_3d_fuelcell_2d_boundary(cell_nodes_boundary_x,
             
             det_J = J1 * J4 - J2 * J3
             det_J_time_weight.append(det_J * weights[k])
+    
+    # Stack coordinates into array
+    if x_G_list:
+        x_G = np.stack([np.array(x_G_list), np.array(y_G_list), np.array(z_G_list)], axis=1)
+        det_J_time_weight = np.array(det_J_time_weight)
+    else:
+        x_G = np.empty((0, 3))
+        det_J_time_weight = np.empty(0)
     
     return x_G, det_J_time_weight
 
@@ -564,7 +588,9 @@ def x_G_b_and_det_J_b_time_weight_3d_fuelcell_2d_boundary_interface(cell_nodes_b
     n_cells = cell_nodes_boundary_x.shape[0]
     n_gauss = len(x_G_domain)
     
-    x_G = []
+    x_G_list = []
+    y_G_list = []
+    z_G_list = []
     det_J_time_weight = []
     
     xi_eta = np.array(x_G_domain)  # (n_gauss, 2)
@@ -637,9 +663,19 @@ def x_G_b_and_det_J_b_time_weight_3d_fuelcell_2d_boundary_interface(cell_nodes_b
             else:
                 continue  # Skip if not a valid boundary
             
-            x_G.append([x_G_k, y_G_k, z_G_k])
+            x_G_list.append(x_G_k)
+            y_G_list.append(y_G_k)
+            z_G_list.append(z_G_k)
             det_J = J1 * J4 - J2 * J3
             det_J_time_weight.append(det_J * weights[k])
+    
+    # Stack coordinates into array
+    if x_G_list:
+        x_G = np.stack([np.array(x_G_list), np.array(y_G_list), np.array(z_G_list)], axis=1)
+        det_J_time_weight = np.array(det_J_time_weight)
+    else:
+        x_G = np.empty((0, 3))
+        det_J_time_weight = np.empty(0)
     
     return x_G, det_J_time_weight
 
@@ -718,8 +754,8 @@ def x_G_and_det_J_line_3d_fuelcell_1d_boundary(segments_source, x_G_line, weight
     length_half_expanded = length_half[:, np.newaxis]  # (n_segments, 1)
     det_J_weight = length_half_expanded * weight_expanded  # (n_segments, n_gauss)
     
-    # Flatten and convert to list (to maintain compatibility with existing code)
-    x_G_b_line = np.stack([x_G_k.ravel(), y_G_k.ravel(), z_G_k.ravel()], axis=1).tolist()
-    det_J_b_time_weight_line = det_J_weight.ravel().tolist()
+    # Return arrays directly instead of converting to list
+    x_G_b_line = np.stack([x_G_k.ravel(), y_G_k.ravel(), z_G_k.ravel()], axis=1)
+    det_J_b_time_weight_line = det_J_weight.ravel()
     
     return x_G_b_line, det_J_b_time_weight_line

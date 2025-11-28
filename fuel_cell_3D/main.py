@@ -235,14 +235,10 @@ if integral_method == 'gauss':
                     x_G_b_distributed_point_source_surface, det_J_b_time_weight_distributed_point_source_surface = x_G_b_and_det_J_b_time_weight_3d_fuelcell_2d_boundary_interface(np.asarray(cell_nodes_distributed_point_source_surface_x), np.asarray(cell_nodes_distributed_point_source_surface_y), np.asarray(cell_nodes_distributed_point_source_surface_z), x_G_rec, weight_G_rec)
 
             x_G_b_line, det_J_b_time_weight_line = x_G_and_det_J_line_3d_fuelcell_1d_boundary(segments_source_coords, x_G_line, weight_G_line)
-            x_G_b_line = np.array(x_G_b_line) 
             num_source_line_gauss_points = np.shape(x_G_b_line)[0]
-            det_J_b_time_weight_line = np.array(det_J_b_time_weight_line)
 
             x_G_b_fixed, det_J_b_time_weight_fixed = x_G_b_and_det_J_b_time_weight_3d_fuelcell_2d_boundary(cell_nodes_fixed_x, cell_nodes_fixed_z, y_min, x_G_rec, weight_G_rec)
-            x_G_b_fixed = np.array(x_G_b_fixed) 
             num_fixed_gauss_points = np.shape(x_G_b_fixed)[0]
-            det_J_b_time_weight_fixed = np.array(det_J_b_time_weight_fixed)
 
             gauss_rotation_axis_electrolyte = np.zeros((len(x_G_electrolyte), 3))
             gauss_rotation_axis_electrode = np.zeros((len(x_G_electrode), 3))
@@ -280,20 +276,15 @@ if integral_method == 'gauss':
         Gauss_b_grain_id_electrolyte_electrode_interace = 1*np.ones(num_gauss_points_on_electrolyte_electrode_interface)
         Gauss_b_grain_id_electrode_pore_interace = 1*np.ones(num_gauss_points_on_electrode_pore_interface)
 
-        x_G_electrolyte,x_G_b_electrolyte,x_G_electrode,x_G_b_electrode,x_G_pore,x_G_b_pore,\
-        x_G_b_interface_electrode_electrolyte,\
-        x_G_b_interface_electrode_pore\
-        = [np.array(lst) for lst in [x_G_electrolyte,x_G_b_electrolyte,x_G_electrode,x_G_b_electrode,x_G_pore,x_G_b_pore,\
-            x_G_b_interface_electrode_electrolyte,\
-        x_G_b_interface_electrode_pore]]
+        # Note: All arrays already properly converted above, no need for list comprehension
 
-        gauss_angle_electrolyte,gauss_angle_b_electrolyte,gauss_angle_electrode,gauss_angle_b_electrode,gauss_angle_pore,gauss_angle_b_pore, gauss_angle_electrolyte_electrode_interface, gauss_angle_electrode_pore_interface = [np.array(lst) for lst in [gauss_angle_electrolyte,gauss_angle_b_electrolyte,gauss_angle_electrode,gauss_angle_b_electrode,gauss_angle_pore,gauss_angle_b_pore, gauss_angle_electrolyte_electrode_interface, gauss_angle_electrode_pore_interface]]
-        Gauss_grain_id_electrolyte,Gauss_b_grain_id_electrolyte,Gauss_grain_id_electrode,Gauss_b_grain_id_electrode,Gauss_grain_id_pore,Gauss_b_grain_id_pore,Gauss_b_grain_id_electrolyte_electrode_interace,Gauss_b_grain_id_electrode_pore_interace = [np.array(lst) for lst in [Gauss_grain_id_electrolyte,Gauss_b_grain_id_electrolyte,Gauss_grain_id_electrode,Gauss_b_grain_id_electrode,Gauss_grain_id_pore,Gauss_b_grain_id_pore,Gauss_b_grain_id_electrolyte_electrode_interace,Gauss_b_grain_id_electrode_pore_interace]]
+        # gauss_angle arrays are already cupy arrays from np.ones()
+        # Gauss_grain_id arrays are already cupy arrays from np.ones()
 
     
         # all gauss points in domain, used for mechanical simulation
         x_G_mechanical = np.concatenate((x_G_electrolyte, x_G_electrode), axis=0)
-        det_J_time_weight_mechanical = np.concatenate((np.asarray(det_J_time_weight_electrolyte), np.asarray(det_J_time_weight_electrode)), axis=0)
+        det_J_time_weight_mechanical = np.concatenate((det_J_time_weight_electrolyte, det_J_time_weight_electrode), axis=0)
         Gauss_grain_id_mechanical = np.concatenate((Gauss_grain_id_electrolyte, Gauss_grain_id_electrode), axis=0)
         Gauss_angle_mechanical = np.concatenate((gauss_angle_electrolyte, gauss_angle_electrode), axis=0)
         num_gauss_points_in_domain_mechanical = np.shape(x_G_mechanical)[0]
