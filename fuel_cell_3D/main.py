@@ -6,8 +6,9 @@ import common as sp
 
 import matplotlib.pyplot as plt
 
-from common import csc_matrix, csr_matrix, bmat, block_diag,vstack
-from common import spsolve
+#from common import csc_matrix, csr_matrix, bmat, block_diag,vstack
+from common import csr_matrix
+#from common import spsolve
 
 
 from get_nodes_gauss_points import x_G_and_def_J_time_weight_3d_fuelcell_domain, x_G_b_and_det_J_b_time_weight_3d_fuelcell_2d_boundary,x_G_b_and_det_J_b_time_weight_3d_fuelcell_2d_boundary_interface, x_G_and_det_J_line_3d_fuelcell_1d_boundary, get_x_nodes_fuel_cell_3d_toy_image
@@ -297,7 +298,7 @@ if integral_method == 'gauss':
 def_nodes_gauss_points_time = time.time()
 print('time to define nodes and Gauss points = ' + "%s seconds" % (def_nodes_gauss_points_time-def_para_time))
 
-####################################################
+###################################################
 # Compute shape function and its gradient in domain
 #####################################################
 print('Compute shape function and its gradient in domain')
@@ -409,7 +410,7 @@ if dimention == 3:
 comp_shape_func_grad_shape_func_in_domain = time.time()
 
 print('time to compute the shape function and grad of shape function in domain = ' + "%s seconds" % (comp_shape_func_grad_shape_func_in_domain-def_nodes_gauss_points_time))
-
+exit() #debug
 
 #######################################################
 # Compute shape function and its gradient on boundaries
@@ -814,8 +815,9 @@ if studied_physics == "fuel cell":
         interface_source_electrode_pore_electrode = -J_interface
         interface_source_electrode_pore_pore = J_interface
 
-
+        exit() #debug
         while diff >6.0e-2:
+        #while iteration_num < 2: #limit to 2 iterations for profiling
             print('iteration number:', iteration_num)
             
             
@@ -1139,7 +1141,8 @@ if studied_physics == "fuel cell":
         plt.colorbar(sc, ax=ax)
         plt.title('Damage Factor')
 
-        plt.show()
+        #plt.show()
+        plt.savefig('fuel_cell_3D.png')
 
 
     
