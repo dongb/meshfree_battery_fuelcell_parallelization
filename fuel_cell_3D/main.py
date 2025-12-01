@@ -160,15 +160,30 @@ if studied_physics == "fuel cell":
             cell_nodes_interface_electrode_pore_x, cell_nodes_interface_electrode_pore_y, cell_nodes_interface_electrode_pore_z]]   
             
             if delta_point_source == 'False':
-                cell_nodes_distributed_point_source_surface_x = []
-                cell_nodes_distributed_point_source_surface_y = []
-                cell_nodes_distributed_point_source_surface_z = []
+                # Vectorized approach: create meshgrid for all combinations
                 # if 10 volxels on top right surface of electrolyte, 20% is used to distribute the point source, this is 2 cells
-                for i_dis in range(2):
-                    for j_dis in range(20):                    
-                        cell_nodes_distributed_point_source_surface_x.append([x_min+(x_max-x_min)/(20)*j_dis, x_min+(x_max-x_min)/(20)*(j_dis+1), x_min+(x_max-x_min)/(20)*(j_dis+1), x_min+(x_max-x_min)/(20)*j_dis])
-                        cell_nodes_distributed_point_source_surface_y.append([(y_max+y_min)/2, (y_max+y_min)/2, (y_max+y_min)/2, (y_max+y_min)/2])
-                        cell_nodes_distributed_point_source_surface_z.append([(z_max+z_min)/2+(z_max-z_min)/20*i_dis, (z_max+z_min)/2+(z_max-z_min)/20*i_dis, (z_max+z_min)/2+(z_max-z_min)/20*(i_dis+1), (z_max+z_min)/2+(z_max-z_min)/20*(i_dis+1)])
+                i_dis_arr = np.arange(2)
+                j_dis_arr = np.arange(20)
+                i_grid, j_grid = np.meshgrid(i_dis_arr, j_dis_arr, indexing='ij')
+                i_grid = i_grid.ravel()
+                j_grid = j_grid.ravel()
+                
+                # Vectorized computation for x coordinates (40 cells x 4 points)
+                dx = (x_max - x_min) / 20
+                x_j = x_min + dx * j_grid
+                x_j_plus = x_min + dx * (j_grid + 1)
+                cell_nodes_distributed_point_source_surface_x = np.column_stack([x_j, x_j_plus, x_j_plus, x_j])
+                
+                # y coordinates (constant)
+                y_mid = (y_max + y_min) / 2
+                cell_nodes_distributed_point_source_surface_y = np.full((len(i_grid), 4), y_mid)
+                
+                # Vectorized computation for z coordinates
+                dz = (z_max - z_min) / 20
+                z_mid = (z_max + z_min) / 2
+                z_i = z_mid + dz * i_grid
+                z_i_plus = z_mid + dz * (i_grid + 1)
+                cell_nodes_distributed_point_source_surface_z = np.column_stack([z_i, z_i, z_i_plus, z_i_plus])
 
             
     num_interface_segments = 0
@@ -325,25 +340,26 @@ if studied_physics == "fuel cell" and single_grain == 'False':
 
 
 if dimention == 3:
-    M_electrolyte = np.array([np.zeros((4,4)) for _ in range(num_gauss_points_in_domain_electrolyte)])
-    M_P_x_electrolyte = np.array([np.zeros((4,4)) for _ in range(num_gauss_points_in_domain_electrolyte)]) # partial M partial x
-    M_P_y_electrolyte = np.array([np.zeros((4,4)) for _ in range(num_gauss_points_in_domain_electrolyte)]) # partial M partial y
-    M_P_z_electrolyte = np.array([np.zeros((4,4)) for _ in range(num_gauss_points_in_domain_electrolyte)]) # partial M partial y
+    # Vectorized initialization - much faster than list comprehension
+    M_electrolyte = np.zeros((num_gauss_points_in_domain_electrolyte, 4, 4))
+    M_P_x_electrolyte = np.zeros((num_gauss_points_in_domain_electrolyte, 4, 4)) # partial M partial x
+    M_P_y_electrolyte = np.zeros((num_gauss_points_in_domain_electrolyte, 4, 4)) # partial M partial y
+    M_P_z_electrolyte = np.zeros((num_gauss_points_in_domain_electrolyte, 4, 4)) # partial M partial y
 
-    M_electrode = np.array([np.zeros((4,4)) for _ in range(num_gauss_points_in_domain_electrode)])
-    M_P_x_electrode = np.array([np.zeros((4,4)) for _ in range(num_gauss_points_in_domain_electrode)]) # partial M partial x
-    M_P_y_electrode = np.array([np.zeros((4,4)) for _ in range(num_gauss_points_in_domain_electrode)]) # partial M partial y
-    M_P_z_electrode = np.array([np.zeros((4,4)) for _ in range(num_gauss_points_in_domain_electrolyte)]) # partial M partial y
+    M_electrode = np.zeros((num_gauss_points_in_domain_electrode, 4, 4))
+    M_P_x_electrode = np.zeros((num_gauss_points_in_domain_electrode, 4, 4)) # partial M partial x
+    M_P_y_electrode = np.zeros((num_gauss_points_in_domain_electrode, 4, 4)) # partial M partial y
+    M_P_z_electrode = np.zeros((num_gauss_points_in_domain_electrolyte, 4, 4)) # partial M partial y
     
-    M_pore = np.array([np.zeros((4,4)) for _ in range(num_gauss_points_in_domain_pore)])
-    M_P_x_pore = np.array([np.zeros((4,4)) for _ in range(num_gauss_points_in_domain_pore)]) # partial M partial x
-    M_P_y_pore = np.array([np.zeros((4,4)) for _ in range(num_gauss_points_in_domain_pore)]) # partial M partial y
-    M_P_z_pore = np.array([np.zeros((4,4)) for _ in range(num_gauss_points_in_domain_pore)]) # partial M partial y
+    M_pore = np.zeros((num_gauss_points_in_domain_pore, 4, 4))
+    M_P_x_pore = np.zeros((num_gauss_points_in_domain_pore, 4, 4)) # partial M partial x
+    M_P_y_pore = np.zeros((num_gauss_points_in_domain_pore, 4, 4)) # partial M partial y
+    M_P_z_pore = np.zeros((num_gauss_points_in_domain_pore, 4, 4)) # partial M partial y
 
-    M_mechanical = np.array([np.zeros((4,4)) for _ in range(num_gauss_points_in_domain_mechanical)])
-    M_P_x_mechanical = np.array([np.zeros((4,4)) for _ in range(num_gauss_points_in_domain_mechanical)]) # partial M partial x
-    M_P_y_mechanical = np.array([np.zeros((4,4)) for _ in range(num_gauss_points_in_domain_mechanical)]) # partial M partial y
-    M_P_z_mechanical = np.array([np.zeros((4,4)) for _ in range(num_gauss_points_in_domain_mechanical)]) # partial M partial y
+    M_mechanical = np.zeros((num_gauss_points_in_domain_mechanical, 4, 4))
+    M_P_x_mechanical = np.zeros((num_gauss_points_in_domain_mechanical, 4, 4)) # partial M partial x
+    M_P_y_mechanical = np.zeros((num_gauss_points_in_domain_mechanical, 4, 4)) # partial M partial y
+    M_P_z_mechanical = np.zeros((num_gauss_points_in_domain_mechanical, 4, 4)) # partial M partial y
     
     phi_nonzero_index_row_electrolyte, phi_nonzero_index_column_electrolyte, phi_nonzerovalue_data_electrolyte, phi_P_x_nonzerovalue_data_electrolyte, phi_P_y_nonzerovalue_data_electrolyte,phi_P_z_nonzerovalue_data_electrolyte, M_electrolyte, M_P_x_electrolyte, M_P_y_electrolyte,M_P_z_electrolyte = compute_phi_M(x_G_electrolyte, Gauss_grain_id_electrolyte, x_nodes_electrolyte,nodes_grain_id_electrolyte, a_electrolyte, M_electrolyte, M_P_x_electrolyte, M_P_y_electrolyte, num_interface_segments, interface_nodes, BxByCxCy, IM_RKPM, single_grain, M_P_z_electrolyte)
     phi_nonzero_index_row_electrode, phi_nonzero_index_column_electrode, phi_nonzerovalue_data_electrode, phi_P_x_nonzerovalue_data_electrode, phi_P_y_nonzerovalue_data_electrode,phi_P_z_nonzerovalue_data_electrode, M_electrode, M_P_x_electrode, M_P_y_electrode,M_P_z_electrode = compute_phi_M(x_G_electrode, Gauss_grain_id_electrode, x_nodes_electrode,nodes_grain_id_electrode, a_electrode, M_electrode, M_P_x_electrode, M_P_y_electrode, num_interface_segments, interface_nodes, BxByCxCy, IM_RKPM, single_grain, M_P_z_electrode)
@@ -420,16 +436,17 @@ print('Compute shape function and its gradient on boundaries')
 
 
 if dimention == 3:
-    M_b_electrolyte = np.array([np.zeros((4,4)) for _ in range(num_gauss_points_on_boundary_electrolyte)],dtype=np.float64)
-    M_b_P_x_electrolyte = np.array([np.zeros((4,4)) for _ in range(num_gauss_points_on_boundary_electrolyte)],dtype=np.float64)
-    M_b_P_y_electrolyte = np.array([np.zeros((4,4)) for _ in range(num_gauss_points_on_boundary_electrolyte)],dtype=np.float64)
-    M_b_P_z_electrolyte = np.array([np.zeros((4,4)) for _ in range(num_gauss_points_on_boundary_electrolyte)],dtype=np.float64)
+    # Vectorized initialization - much faster than list comprehension
+    M_b_electrolyte = np.zeros((num_gauss_points_on_boundary_electrolyte, 4, 4), dtype=np.float64)
+    M_b_P_x_electrolyte = np.zeros((num_gauss_points_on_boundary_electrolyte, 4, 4), dtype=np.float64)
+    M_b_P_y_electrolyte = np.zeros((num_gauss_points_on_boundary_electrolyte, 4, 4), dtype=np.float64)
+    M_b_P_z_electrolyte = np.zeros((num_gauss_points_on_boundary_electrolyte, 4, 4), dtype=np.float64)
     phi_b_nonzero_index_row_electrolyte, phi_b_nonzero_index_column_electrolyte, phi_b_nonzerovalue_data_electrolyte, phi_b_P_x_nonzerovalue_data_electrolyte, phi_b_P_y_nonzerovalue_data_electrolyte,phi_b_P_z_nonzerovalue_data_electrolyte, M_b_electrolyte, M_b_P_x_electrolyte, M_b_P_y_electrolyte, M_b_P_z_electrolyte = compute_phi_M(x_G_b_electrolyte, Gauss_b_grain_id_electrolyte, x_nodes_electrolyte, nodes_grain_id_electrolyte, a_electrolyte, M_b_electrolyte, M_b_P_x_electrolyte, M_b_P_y_electrolyte, num_interface_segments, interface_nodes, BxByCxCy,IM_RKPM, single_grain, M_b_P_z_electrolyte)
     
-    M_b_mechanical = np.array([np.zeros((4,4)) for _ in range(num_gauss_points_on_boundary_electrolyte)],dtype=np.float64)
-    M_b_P_x_mechanical = np.array([np.zeros((4,4)) for _ in range(num_gauss_points_on_boundary_electrolyte)],dtype=np.float64)
-    M_b_P_y_mechanical = np.array([np.zeros((4,4)) for _ in range(num_gauss_points_on_boundary_electrolyte)],dtype=np.float64)
-    M_b_P_z_mechanical = np.array([np.zeros((4,4)) for _ in range(num_gauss_points_on_boundary_electrolyte)],dtype=np.float64)
+    M_b_mechanical = np.zeros((num_gauss_points_on_boundary_electrolyte, 4, 4), dtype=np.float64)
+    M_b_P_x_mechanical = np.zeros((num_gauss_points_on_boundary_electrolyte, 4, 4), dtype=np.float64)
+    M_b_P_y_mechanical = np.zeros((num_gauss_points_on_boundary_electrolyte, 4, 4), dtype=np.float64)
+    M_b_P_z_mechanical = np.zeros((num_gauss_points_on_boundary_electrolyte, 4, 4), dtype=np.float64)
     phi_b_nonzero_index_row_mechanical, phi_b_nonzero_index_column_mechanical, phi_b_nonzerovalue_data_mechanical, phi_b_P_x_nonzerovalue_data_mechanical, phi_b_P_y_nonzerovalue_data_mechanical,phi_b_P_z_nonzerovalue_data_mechanical, M_b_mechanical, M_b_P_x_mechanical, M_b_P_y_mechanical, M_b_P_z_mechanical = compute_phi_M(x_G_b_electrolyte, Gauss_b_grain_id_electrolyte, x_nodes_mechanical, nodes_grain_id_mechanical, a_mechanical, M_b_mechanical, M_b_P_x_mechanical, M_b_P_y_mechanical, num_interface_segments, interface_nodes, BxByCxCy,IM_RKPM, single_grain, M_b_P_z_mechanical)
 
 num_non_zero_phi_a_b_electrolyte = np.shape(np.array(phi_b_nonzero_index_row_electrolyte))[0]
@@ -462,48 +479,49 @@ if dimention == 3:
 
 
 if dimention == 3:
-    M_b_electrode = np.array([np.zeros((4,4)) for _ in range(num_gauss_points_on_boundary_electrode)],dtype=np.float64)
-    M_b_P_x_electrode = np.array([np.zeros((4,4)) for _ in range(num_gauss_points_on_boundary_electrode)],dtype=np.float64)
-    M_b_P_y_electrode = np.array([np.zeros((4,4)) for _ in range(num_gauss_points_on_boundary_electrode)],dtype=np.float64)
-    M_b_P_z_electrode = np.array([np.zeros((4,4)) for _ in range(num_gauss_points_on_boundary_electrode)],dtype=np.float64)
+    M_b_electrode = np.zeros((num_gauss_points_on_boundary_electrode, 4, 4), dtype=np.float64)
+    M_b_P_x_electrode = np.zeros((num_gauss_points_on_boundary_electrode, 4, 4), dtype=np.float64)
+    M_b_P_y_electrode = np.zeros((num_gauss_points_on_boundary_electrode, 4, 4), dtype=np.float64)
+    M_b_P_z_electrode = np.zeros((num_gauss_points_on_boundary_electrode, 4, 4), dtype=np.float64)
     phi_b_nonzero_index_row_electrode, phi_b_nonzero_index_column_electrode, phi_b_nonzerovalue_data_electrode, phi_b_P_x_nonzerovalue_data_electrode, phi_b_P_y_nonzerovalue_data_electrode,phi_b_P_z_nonzerovalue_data_electrode, M_b_electrode, M_b_P_x_electrode, M_b_P_y_electrode, M_b_P_z_electrode = compute_phi_M(x_G_b_electrode, Gauss_b_grain_id_electrode, x_nodes_electrode, nodes_grain_id_electrode, a_electrode, M_b_electrode, M_b_P_x_electrode, M_b_P_y_electrode, num_interface_segments, interface_nodes, BxByCxCy,IM_RKPM, single_grain, M_b_P_z_electrode)
     
-    M_b_pore = np.array([np.zeros((4,4)) for _ in range(num_gauss_points_on_boundary_pore)],dtype=np.float64)
-    M_b_P_x_pore = np.array([np.zeros((4,4)) for _ in range(num_gauss_points_on_boundary_pore)],dtype=np.float64)
-    M_b_P_y_pore= np.array([np.zeros((4,4)) for _ in range(num_gauss_points_on_boundary_pore)],dtype=np.float64)
-    M_b_P_z_pore = np.array([np.zeros((4,4)) for _ in range(num_gauss_points_on_boundary_pore)],dtype=np.float64)
+    M_b_pore = np.zeros((num_gauss_points_on_boundary_pore, 4, 4), dtype=np.float64)
+    M_b_P_x_pore = np.zeros((num_gauss_points_on_boundary_pore, 4, 4), dtype=np.float64)
+    M_b_P_y_pore = np.zeros((num_gauss_points_on_boundary_pore, 4, 4), dtype=np.float64)
+    M_b_P_z_pore = np.zeros((num_gauss_points_on_boundary_pore, 4, 4), dtype=np.float64)
     phi_b_nonzero_index_row_pore, phi_b_nonzero_index_column_pore, phi_b_nonzerovalue_data_pore, phi_b_P_x_nonzerovalue_data_pore, phi_b_P_y_nonzerovalue_data_pore,phi_b_P_z_nonzerovalue_data_pore, M_b_pore, M_b_P_x_pore, M_b_P_y_pore, M_b_P_z_pore = compute_phi_M(x_G_b_pore, Gauss_b_grain_id_pore, x_nodes_pore, nodes_grain_id_pore, a_pore, M_b_pore, M_b_P_x_pore, M_b_P_y_pore, num_interface_segments, interface_nodes, BxByCxCy,IM_RKPM, single_grain, M_b_P_z_pore)
     
-    M_b_electrolyte_electrode_electrolyte= np.array([np.zeros((4,4)) for _ in range(num_gauss_points_on_electrolyte_electrode_interface)],dtype=np.float64)
-    M_b_P_x_electrolyte_electrode_electrolyte= np.array([np.zeros((4,4)) for _ in range(num_gauss_points_on_electrolyte_electrode_interface)],dtype=np.float64)
-    M_b_P_y_electrolyte_electrode_electrolyte = np.array([np.zeros((4,4)) for _ in range(num_gauss_points_on_electrolyte_electrode_interface)],dtype=np.float64)
-    M_b_P_z_electrolyte_electrode_electrolyte = np.array([np.zeros((4,4)) for _ in range(num_gauss_points_on_electrolyte_electrode_interface)],dtype=np.float64)
+    M_b_electrolyte_electrode_electrolyte = np.zeros((num_gauss_points_on_electrolyte_electrode_interface, 4, 4), dtype=np.float64)
+    M_b_P_x_electrolyte_electrode_electrolyte = np.zeros((num_gauss_points_on_electrolyte_electrode_interface, 4, 4), dtype=np.float64)
+    M_b_P_y_electrolyte_electrode_electrolyte = np.zeros((num_gauss_points_on_electrolyte_electrode_interface, 4, 4), dtype=np.float64)
+    M_b_P_z_electrolyte_electrode_electrolyte = np.zeros((num_gauss_points_on_electrolyte_electrode_interface, 4, 4), dtype=np.float64)
     phi_b_nonzero_index_row_electrolyte_electrode_electrolyte, phi_b_nonzero_index_column_electrolyte_electrode_electrolyte, phi_b_nonzerovalue_data_electrolyte_electrode_electrolyte, phi_b_P_x_nonzerovalue_data_electrolyte_electrode_electrolyte, phi_b_P_y_nonzerovalue_data_electrolyte_electrode_electrolyte,phi_b_P_z_nonzerovalue_data_electrolyte_electrode_electrolyte, M_b_electrolyte_electrode_electrolyte, M_b_P_x_electrolyte_electrode_electrolyte, M_b_P_y_electrolyte_electrode_electrolyte, M_b_P_z_electrolyte_electrode_electrolyte = compute_phi_M(x_G_b_interface_electrode_electrolyte, Gauss_b_grain_id_electrolyte_electrode_interace, x_nodes_electrolyte, nodes_grain_id_electrolyte, a_electrolyte, M_b_electrolyte_electrode_electrolyte, M_b_P_x_electrolyte_electrode_electrolyte, M_b_P_y_electrolyte_electrode_electrolyte, num_interface_segments, interface_nodes, BxByCxCy,IM_RKPM, single_grain, M_b_P_z_electrolyte_electrode_electrolyte)
     
-    M_b_electrolyte_electrode_electrode= np.array([np.zeros((4,4)) for _ in range(num_gauss_points_on_electrolyte_electrode_interface)],dtype=np.float64)
-    M_b_P_x_electrolyte_electrode_electrode= np.array([np.zeros((4,4)) for _ in range(num_gauss_points_on_electrolyte_electrode_interface)],dtype=np.float64)
-    M_b_P_y_electrolyte_electrode_electrode = np.array([np.zeros((4,4)) for _ in range(num_gauss_points_on_electrolyte_electrode_interface)],dtype=np.float64)
-    M_b_P_z_electrolyte_electrode_electrode = np.array([np.zeros((4,4)) for _ in range(num_gauss_points_on_electrolyte_electrode_interface)],dtype=np.float64)
+    M_b_electrolyte_electrode_electrode = np.zeros((num_gauss_points_on_electrolyte_electrode_interface, 4, 4), dtype=np.float64)
+    M_b_P_x_electrolyte_electrode_electrode = np.zeros((num_gauss_points_on_electrolyte_electrode_interface, 4, 4), dtype=np.float64)
+    M_b_P_y_electrolyte_electrode_electrode = np.zeros((num_gauss_points_on_electrolyte_electrode_interface, 4, 4), dtype=np.float64)
+    M_b_P_z_electrolyte_electrode_electrode = np.zeros((num_gauss_points_on_electrolyte_electrode_interface, 4, 4), dtype=np.float64)
     phi_b_nonzero_index_row_electrolyte_electrode_electrode, phi_b_nonzero_index_column_electrolyte_electrode_electrode, phi_b_nonzerovalue_data_electrolyte_electrode_electrode, phi_b_P_x_nonzerovalue_data_electrolyte_electrode_electrode, phi_b_P_y_nonzerovalue_data_electrolyte_electrode_electrode,phi_b_P_z_nonzerovalue_data_electrolyte_electrode_electrode, M_b_electrolyte_electrode_electrode, M_b_P_x_electrolyte_electrode_electrode, M_b_P_y_electrolyte_electrode_electrode, M_b_P_z_electrolyte_electrode_electrode = compute_phi_M(x_G_b_interface_electrode_electrolyte, Gauss_b_grain_id_electrolyte_electrode_interace, x_nodes_electrode, nodes_grain_id_electrode, a_electrode, M_b_electrolyte_electrode_electrode, M_b_P_x_electrolyte_electrode_electrode, M_b_P_y_electrolyte_electrode_electrode, num_interface_segments, interface_nodes, BxByCxCy,IM_RKPM, single_grain, M_b_P_z_electrolyte_electrode_electrode)
     
-    M_b_electrode_pore_electrode = np.array([np.zeros((4,4)) for _ in range(num_gauss_points_on_electrode_pore_interface)],dtype=np.float64)
-    M_b_P_x_electrode_pore_electrode= np.array([np.zeros((4,4)) for _ in range(num_gauss_points_on_electrode_pore_interface)],dtype=np.float64)
-    M_b_P_y_electrode_pore_electrode = np.array([np.zeros((4,4)) for _ in range(num_gauss_points_on_electrode_pore_interface)],dtype=np.float64)
-    M_b_P_z_electrode_pore_electrode = np.array([np.zeros((4,4)) for _ in range(num_gauss_points_on_electrode_pore_interface)],dtype=np.float64)
+    M_b_electrode_pore_electrode = np.zeros((num_gauss_points_on_electrode_pore_interface, 4, 4), dtype=np.float64)
+    M_b_P_x_electrode_pore_electrode = np.zeros((num_gauss_points_on_electrode_pore_interface, 4, 4), dtype=np.float64)
+    M_b_P_y_electrode_pore_electrode = np.zeros((num_gauss_points_on_electrode_pore_interface, 4, 4), dtype=np.float64)
+    M_b_P_z_electrode_pore_electrode = np.zeros((num_gauss_points_on_electrode_pore_interface, 4, 4), dtype=np.float64)
     phi_b_nonzero_index_row_electrode_pore_electrode, phi_b_nonzero_index_column_electrode_pore_electrode, phi_b_nonzerovalue_data_electrode_pore_electrode, phi_b_P_x_nonzerovalue_data_electrode_pore_electrode, phi_b_P_y_nonzerovalue_data_electrode_pore_electrode,phi_b_P_z_nonzerovalue_data_electrode_pore_electrode, M_b_electrode_pore_electrode, M_b_P_x_electrode_pore_electrode, M_b_P_y_electrode_pore_electrode, M_b_P_z_electrode_pore_electrode = compute_phi_M(x_G_b_interface_electrode_pore, Gauss_b_grain_id_electrode_pore_interace, x_nodes_electrode, nodes_grain_id_electrode, a_electrode, M_b_electrode_pore_electrode, M_b_P_x_electrode_pore_electrode, M_b_P_y_electrode_pore_electrode, num_interface_segments, interface_nodes, BxByCxCy,IM_RKPM, single_grain, M_b_P_z_electrode_pore_electrode)
     
-    M_b_electrode_pore_pore = np.array([np.zeros((4,4)) for _ in range(num_gauss_points_on_electrode_pore_interface)],dtype=np.float64)
-    M_b_P_x_electrode_pore_pore= np.array([np.zeros((4,4)) for _ in range(num_gauss_points_on_electrode_pore_interface)],dtype=np.float64)
-    M_b_P_y_electrode_pore_pore = np.array([np.zeros((4,4)) for _ in range(num_gauss_points_on_electrode_pore_interface)],dtype=np.float64)
-    M_b_P_z_electrode_pore_pore = np.array([np.zeros((4,4)) for _ in range(num_gauss_points_on_electrode_pore_interface)],dtype=np.float64)
+    M_b_electrode_pore_pore = np.zeros((num_gauss_points_on_electrode_pore_interface, 4, 4), dtype=np.float64)
+    M_b_P_x_electrode_pore_pore = np.zeros((num_gauss_points_on_electrode_pore_interface, 4, 4), dtype=np.float64)
+    M_b_P_y_electrode_pore_pore = np.zeros((num_gauss_points_on_electrode_pore_interface, 4, 4), dtype=np.float64)
+    M_b_P_z_electrode_pore_pore = np.zeros((num_gauss_points_on_electrode_pore_interface, 4, 4), dtype=np.float64)
     phi_b_nonzero_index_row_electrode_pore_pore, phi_b_nonzero_index_column_electrode_pore_pore, phi_b_nonzerovalue_data_electrode_pore_pore, phi_b_P_x_nonzerovalue_data_electrode_pore_pore, phi_b_P_y_nonzerovalue_data_electrode_pore_pore,phi_b_P_z_nonzerovalue_data_electrode_pore_pore, M_b_electrode_pore_pore, M_b_P_x_electrode_pore_pore, M_b_P_y_electrode_pore_pore, M_b_P_z_electrode_pore_pore = compute_phi_M(x_G_b_interface_electrode_pore, Gauss_b_grain_id_electrode_pore_interace, x_nodes_pore, nodes_grain_id_pore, a_pore, M_b_electrode_pore_pore, M_b_P_x_electrode_pore_pore, M_b_P_y_electrode_pore_pore, num_interface_segments, interface_nodes, BxByCxCy,IM_RKPM, single_grain, M_b_P_z_electrode_pore_pore)
     
     if delta_point_source == 'False':
         print(np.shape(x_G_b_distributed_point_source_surface)[0])
-        M_b_distributed_point_source_surface = np.array([np.zeros((4,4)) for _ in range(np.shape(x_G_b_distributed_point_source_surface)[0])],dtype=np.float64)
-        M_b_P_x_distributed_point_source_surface= np.array([np.zeros((4,4)) for _ in range(np.shape(x_G_b_distributed_point_source_surface)[0])],dtype=np.float64)
-        M_b_P_y_distributed_point_source_surface = np.array([np.zeros((4,4)) for _ in range(np.shape(x_G_b_distributed_point_source_surface)[0])],dtype=np.float64)
-        M_b_P_z_distributed_point_source_surface = np.array([np.zeros((4,4)) for _ in range(np.shape(x_G_b_distributed_point_source_surface)[0])],dtype=np.float64)
+        num_dist_pts = np.shape(x_G_b_distributed_point_source_surface)[0]
+        M_b_distributed_point_source_surface = np.zeros((num_dist_pts, 4, 4), dtype=np.float64)
+        M_b_P_x_distributed_point_source_surface = np.zeros((num_dist_pts, 4, 4), dtype=np.float64)
+        M_b_P_y_distributed_point_source_surface = np.zeros((num_dist_pts, 4, 4), dtype=np.float64)
+        M_b_P_z_distributed_point_source_surface = np.zeros((num_dist_pts, 4, 4), dtype=np.float64)
         Gauss_b_grain_id_distributed_point_source_surface  = 1*np.ones(np.shape(x_G_b_distributed_point_source_surface)[0])
         phi_b_nonzero_index_row_distributed_point_source_surface, phi_b_nonzero_index_column_distributed_point_source_surface, phi_b_nonzerovalue_data_distributed_point_source_surface, phi_b_P_x_nonzerovalue_data_distributed_point_source_surface, phi_b_P_y_nonzerovalue_data_distributed_point_source_surface,phi_b_P_z_nonzerovalue_data_distributed_point_source_surface, M_b_distributed_point_source_surface, M_b_P_x_distributed_point_source_surface, M_b_P_y_distributed_point_source_surface, M_b_P_z_distributed_point_source_surface = compute_phi_M(np.array(x_G_b_distributed_point_source_surface), Gauss_b_grain_id_distributed_point_source_surface, x_nodes_electrolyte, nodes_grain_id_electrolyte, a_electrolyte, M_b_distributed_point_source_surface, M_b_P_x_distributed_point_source_surface, M_b_P_y_distributed_point_source_surface, num_interface_segments, interface_nodes, BxByCxCy,IM_RKPM, single_grain, M_b_P_z_distributed_point_source_surface)
 
@@ -607,22 +625,22 @@ if dimention == 3:
 
 
 if dimention == 3:
-    M_electrolyte_nn = np.array([np.zeros((4,4)) for _ in range(num_nodes_electrolyte)])
-    M_P_x_electrolyte_nn = np.array([np.zeros((4,4)) for _ in range(num_nodes_electrolyte)]) # partial M partial x
-    M_P_y_electrolyte_nn = np.array([np.zeros((4,4)) for _ in range(num_nodes_electrolyte)]) # partial M partial y
-    M_P_z_electrolyte_nn = np.array([np.zeros((4,4)) for _ in range(num_nodes_electrolyte)]) # partial M partial y
+    M_electrolyte_nn = np.zeros((num_nodes_electrolyte, 4, 4))
+    M_P_x_electrolyte_nn = np.zeros((num_nodes_electrolyte, 4, 4)) # partial M partial x
+    M_P_y_electrolyte_nn = np.zeros((num_nodes_electrolyte, 4, 4)) # partial M partial y
+    M_P_z_electrolyte_nn = np.zeros((num_nodes_electrolyte, 4, 4)) # partial M partial y
     phi_nonzero_index_row_electrolyte_nn, phi_nonzero_index_column_electrolyte_nn, phi_nonzerovalue_data_electrolyte_nn, phi_P_x_nonzerovalue_data_electrolyte_nn, phi_P_y_nonzerovalue_data_electrolyte_nn, phi_P_z_nonzerovalue_data_electrolyte_nn, M_electrolyte_nn, M_P_x_electrolyte_nn, M_P_y_electrolyte_nn, M_P_z_electrolyte_nn = compute_phi_M(x_nodes_electrolyte, Gauss_grain_id_electrolyte, x_nodes_electrolyte,nodes_grain_id_electrolyte, a_electrolyte, M_electrolyte_nn, M_P_x_electrolyte_nn, M_P_y_electrolyte_nn, num_interface_segments, interface_nodes, BxByCxCy, IM_RKPM, single_grain, M_P_z_electrolyte_nn)
     
-    M_electrode_nn = np.array([np.zeros((4,4)) for _ in range(num_nodes_electrode)])
-    M_P_x_electrode_nn = np.array([np.zeros((4,4)) for _ in range(num_nodes_electrode)]) # partial M partial x
-    M_P_y_electrode_nn = np.array([np.zeros((4,4)) for _ in range(num_nodes_electrode)]) # partial M partial y
-    M_P_z_electrode_nn = np.array([np.zeros((4,4)) for _ in range(num_nodes_electrode)]) # partial M partial y
+    M_electrode_nn = np.zeros((num_nodes_electrode, 4, 4))
+    M_P_x_electrode_nn = np.zeros((num_nodes_electrode, 4, 4)) # partial M partial x
+    M_P_y_electrode_nn = np.zeros((num_nodes_electrode, 4, 4)) # partial M partial y
+    M_P_z_electrode_nn = np.zeros((num_nodes_electrode, 4, 4)) # partial M partial y
     phi_nonzero_index_row_electrode_nn, phi_nonzero_index_column_electrode_nn, phi_nonzerovalue_data_electrode_nn, phi_P_x_nonzerovalue_data_electrode_nn, phi_P_y_nonzerovalue_data_electrode_nn, phi_P_z_nonzerovalue_data_electrode_nn, M_electrode_nn, M_P_x_electrode_nn, M_P_y_electrode_nn, M_P_z_electrode_nn = compute_phi_M(x_nodes_electrode, Gauss_grain_id_electrode, x_nodes_electrode,nodes_grain_id_electrode, a_electrode, M_electrode_nn, M_P_x_electrode_nn, M_P_y_electrode_nn, num_interface_segments, interface_nodes, BxByCxCy, IM_RKPM, single_grain, M_P_z_electrode_nn)
 
-    M_pore_nn = np.array([np.zeros((4,4)) for _ in range(num_nodes_pore)])
-    M_P_x_pore_nn = np.array([np.zeros((4,4)) for _ in range(num_nodes_pore)]) # partial M partial x
-    M_P_y_pore_nn = np.array([np.zeros((4,4)) for _ in range(num_nodes_pore)]) # partial M partial y
-    M_P_z_pore_nn = np.array([np.zeros((4,4)) for _ in range(num_nodes_pore)]) # partial M partial y
+    M_pore_nn = np.zeros((num_nodes_pore, 4, 4))
+    M_P_x_pore_nn = np.zeros((num_nodes_pore, 4, 4)) # partial M partial x
+    M_P_y_pore_nn = np.zeros((num_nodes_pore, 4, 4)) # partial M partial y
+    M_P_z_pore_nn = np.zeros((num_nodes_pore, 4, 4)) # partial M partial y
     phi_nonzero_index_row_pore_nn, phi_nonzero_index_column_pore_nn, phi_nonzerovalue_data_pore_nn, phi_P_x_nonzerovalue_data_pore_nn, phi_P_y_nonzerovalue_data_pore_nn, phi_P_z_nonzerovalue_data_pore_nn, M_pore_nn, M_P_x_pore_nn, M_P_y_pore_nn, M_P_z_pore_nn = compute_phi_M(x_nodes_pore, Gauss_grain_id_pore, x_nodes_pore,nodes_grain_id_pore, a_pore, M_pore_nn, M_P_x_pore_nn, M_P_y_pore_nn, num_interface_segments, interface_nodes, BxByCxCy, IM_RKPM, single_grain, M_P_z_pore_nn)
 
     num_non_zero_phi_a_electrolyte_nn = np.shape(np.array(phi_nonzero_index_row_electrolyte_nn))[0]
@@ -643,10 +661,10 @@ if dimention == 3:
 2. shape function used to interpolate the displacement at the fixed line (3d), shape: number of gauss points on fixed line times number of nodes
 """
 if dimention == 3:
-    M_electrolyte_line_nodes = np.array([np.zeros((4,4)) for _ in range(num_source_line_gauss_points)])
-    M_P_x_electrolyte_line_nodes = np.array([np.zeros((4,4)) for _ in range(num_source_line_gauss_points)]) # partial M partial x
-    M_P_y_electrolyte_line_nodes = np.array([np.zeros((4,4)) for _ in range(num_source_line_gauss_points)]) # partial M partial y
-    M_P_z_electrolyte_line_nodes = np.array([np.zeros((4,4)) for _ in range(num_source_line_gauss_points)]) # partial M partial y
+    M_electrolyte_line_nodes = np.zeros((num_source_line_gauss_points, 4, 4))
+    M_P_x_electrolyte_line_nodes = np.zeros((num_source_line_gauss_points, 4, 4)) # partial M partial x
+    M_P_y_electrolyte_line_nodes = np.zeros((num_source_line_gauss_points, 4, 4)) # partial M partial y
+    M_P_z_electrolyte_line_nodes = np.zeros((num_source_line_gauss_points, 4, 4)) # partial M partial y
 
     phi_nonzero_index_row_electrolyte_line_nodes, phi_nonzero_index_column_electrolyte_line_nodes, phi_nonzerovalue_data_electrolyte_line_nodes, phi_P_x_nonzerovalue_data_electrolyte_line_nodes, phi_P_y_nonzerovalue_data_electrolyte_line_nodes, phi_P_z_nonzerovalue_data_electrolyte_line_nodes, M_electrolyte_line_nodes, M_P_x_electrolyte_line_nodes, M_P_y_electrolyte_line_nodes, M_P_z_electrolyte_line_nodes = compute_phi_M(x_G_b_line, Gauss_grain_id_electrolyte, x_nodes_electrolyte,nodes_grain_id_electrolyte, a_electrolyte, M_electrolyte_line_nodes, M_P_x_electrolyte_line_nodes, M_P_y_electrolyte_line_nodes, num_interface_segments, interface_nodes, BxByCxCy, IM_RKPM, single_grain, M_P_z_electrolyte_line_nodes)
     
@@ -660,10 +678,10 @@ if dimention == 3:
     shape_func_line_n_nodes_electrolyte_times_det_J_b_time_weight = shape_func_line_n_nodes_electrolyte.copy()
     shape_func_line_n_nodes_electrolyte_times_det_J_b_time_weight.data *= det_J_b_time_weight_line[shape_func_line_n_nodes_electrolyte_times_det_J_b_time_weight.indices]
     
-    M_electrode_line_nodes = np.array([np.zeros((4,4)) for _ in range(num_source_line_gauss_points)])
-    M_P_x_electrode_line_nodes = np.array([np.zeros((4,4)) for _ in range(num_source_line_gauss_points)]) # partial M partial x
-    M_P_y_electrode_line_nodes = np.array([np.zeros((4,4)) for _ in range(num_source_line_gauss_points)]) # partial M partial y
-    M_P_z_electrode_line_nodes = np.array([np.zeros((4,4)) for _ in range(num_source_line_gauss_points)]) # partial M partial y
+    M_electrode_line_nodes = np.zeros((num_source_line_gauss_points, 4, 4))
+    M_P_x_electrode_line_nodes = np.zeros((num_source_line_gauss_points, 4, 4)) # partial M partial x
+    M_P_y_electrode_line_nodes = np.zeros((num_source_line_gauss_points, 4, 4)) # partial M partial y
+    M_P_z_electrode_line_nodes = np.zeros((num_source_line_gauss_points, 4, 4)) # partial M partial y
     
     phi_nonzero_index_row_electrode_line_nodes, phi_nonzero_index_column_electrode_line_nodes, phi_nonzerovalue_data_electrode_line_nodes, phi_P_x_nonzerovalue_data_electrode_line_nodes, phi_P_y_nonzerovalue_data_electrode_line_nodes, phi_P_z_nonzerovalue_data_electrode_line_nodes, M_electrode_line_nodes, M_P_x_electrode_line_nodes, M_P_y_electrode_line_nodes, M_P_z_electrode_line_nodes = compute_phi_M(x_G_b_line, Gauss_grain_id_electrode, x_nodes_electrode,nodes_grain_id_electrode, a_electrode, M_electrode_line_nodes, M_P_x_electrode_line_nodes, M_P_y_electrode_line_nodes, num_interface_segments, interface_nodes, BxByCxCy, IM_RKPM, single_grain, M_P_z_electrode_line_nodes)
     
@@ -677,10 +695,10 @@ if dimention == 3:
     shape_func_line_n_nodes_electrode_times_det_J_b_time_weight = shape_func_line_n_nodes_electrode.copy()
     shape_func_line_n_nodes_electrode_times_det_J_b_time_weight.data *= det_J_b_time_weight_line[shape_func_line_n_nodes_electrode_times_det_J_b_time_weight.indices]
     
-    M_pore_line_nodes = np.array([np.zeros((4,4)) for _ in range(num_source_line_gauss_points)])
-    M_P_x_pore_line_nodes = np.array([np.zeros((4,4)) for _ in range(num_source_line_gauss_points)]) # partial M partial x
-    M_P_y_pore_line_nodes = np.array([np.zeros((4,4)) for _ in range(num_source_line_gauss_points)]) # partial M partial y
-    M_P_z_pore_line_nodes = np.array([np.zeros((4,4)) for _ in range(num_source_line_gauss_points)]) # partial M partial y
+    M_pore_line_nodes = np.zeros((num_source_line_gauss_points, 4, 4))
+    M_P_x_pore_line_nodes = np.zeros((num_source_line_gauss_points, 4, 4)) # partial M partial x
+    M_P_y_pore_line_nodes = np.zeros((num_source_line_gauss_points, 4, 4)) # partial M partial y
+    M_P_z_pore_line_nodes = np.zeros((num_source_line_gauss_points, 4, 4)) # partial M partial y
     
     phi_nonzero_index_row_pore_line_nodes, phi_nonzero_index_column_pore_line_nodes, phi_nonzerovalue_data_pore_line_nodes, phi_P_x_nonzerovalue_data_pore_line_nodes, phi_P_y_nonzerovalue_data_pore_line_nodes, phi_P_z_nonzerovalue_data_pore_line_nodes, M_pore_line_nodes, M_P_x_pore_line_nodes, M_P_y_pore_line_nodes, M_P_z_pore_line_nodes = compute_phi_M(x_G_b_line, Gauss_grain_id_pore, x_nodes_pore,nodes_grain_id_pore, a_pore, M_pore_line_nodes, M_P_x_pore_line_nodes, M_P_y_pore_line_nodes, num_interface_segments, interface_nodes, BxByCxCy, IM_RKPM, single_grain, M_P_z_pore_line_nodes)
     
@@ -694,10 +712,10 @@ if dimention == 3:
     shape_func_line_n_nodes_pore_times_det_J_b_time_weight.data *= det_J_b_time_weight_line[shape_func_line_n_nodes_pore_times_det_J_b_time_weight.indices]
     
 
-    M_fixed_nodes = np.array([np.zeros((4,4)) for _ in range(num_fixed_gauss_points)])
-    M_P_x_fixed_nodes = np.array([np.zeros((4,4)) for _ in range(num_fixed_gauss_points)]) # partial M partial x
-    M_P_y_fixed_nodes = np.array([np.zeros((4,4)) for _ in range(num_fixed_gauss_points)]) # partial M partial y
-    M_P_z_fixed_nodes = np.array([np.zeros((4,4)) for _ in range(num_fixed_gauss_points)]) # partial M partial y
+    M_fixed_nodes = np.zeros((num_fixed_gauss_points, 4, 4))
+    M_P_x_fixed_nodes = np.zeros((num_fixed_gauss_points, 4, 4)) # partial M partial x
+    M_P_y_fixed_nodes = np.zeros((num_fixed_gauss_points, 4, 4)) # partial M partial y
+    M_P_z_fixed_nodes = np.zeros((num_fixed_gauss_points, 4, 4)) # partial M partial y
 
     phi_nonzero_index_row_fixed_nodes, phi_nonzero_index_column_fixed_nodes, phi_nonzerovalue_data_fixed_nodes, phi_P_x_nonzerovalue_data_fixed_nodes, phi_P_y_nonzerovalue_data_fixed_nodes, phi_P_z_nonzerovalue_data_fixed_nodes, M_fixed_nodes, M_P_x_fixed_nodes, M_P_y_fixed_nodes, M_P_z_fixed_nodes = compute_phi_M(x_G_b_fixed, Gauss_grain_id_mechanical, x_nodes_mechanical,nodes_grain_id_mechanical, a_mechanical, M_fixed_nodes, M_P_x_fixed_nodes, M_P_y_fixed_nodes, num_interface_segments, interface_nodes, BxByCxCy, IM_RKPM, single_grain, M_P_z_fixed_nodes)
 
