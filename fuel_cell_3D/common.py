@@ -132,7 +132,6 @@ except (RuntimeError, ImportError):
     import scipy.sparse.linalg as linalg
     from scipy.sparse import csr_array, csc_matrix, csr_matrix, bmat, block_diag, vstack, diags
     from scipy.sparse.linalg import spsolve
-    
     def time():
         """NumPy timing function using performance counter"""
         return perf_counter_ns() / 1000.0
