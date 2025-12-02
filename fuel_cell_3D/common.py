@@ -115,8 +115,8 @@ try:
     from legate_sparse import csr_array
     csr_matrix = csr_array
     print("legate_sparse.csr_array imported")
-    #from legate_sparse.linalg import spsolve #debug
-    #print("legate_sparse.linalg.spsolve imported")
+    from legate_sparse.linalg import spsolve
+    print("legate_sparse.linalg.spsolve imported")
     np.linalg.det = det_via_eigenvalues
     bmat = manual_bmat_coo 
 

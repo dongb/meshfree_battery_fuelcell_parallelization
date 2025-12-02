@@ -6,7 +6,7 @@ import common as sp
 
 import matplotlib.pyplot as plt
 
-from common import csr_matrix, bmat, block_diag, vstack
+from common import csr_matrix
 from common import spsolve
 
 
@@ -847,7 +847,7 @@ if studied_physics == "fuel cell":
                         shape_func_b_electrolyte,shape_func_b_times_det_J_b_time_weight_electrolyte,grad_shape_func_b_x_times_det_J_b_time_weight_electrolyte, grad_shape_func_b_y_times_det_J_b_time_weight_electrolyte, shape_func_b_times_det_J_b_time_weight_electrolyte_electrode_electrolyte, interface_source_electrolyte_electrode_electrolyte, grad_shape_func_z_electrolyte, grad_shape_func_z_times_det_J_time_weight_electrolyte, grad_shape_func_b_z_times_det_J_b_time_weight_electrolyte, normal_vector_z_electrolyte)
             
             interface_source_electrode = np.concatenate((interface_source_electrolyte_electrode_electrode, interface_source_electrode_pore_electrode))
-            shape_func_interface_electrode = vstack((shape_func_b_times_det_J_b_time_weight_electrolyte_electrode_electrode, shape_func_b_times_det_J_b_time_weight_electrode_pore_electrode), format='csc')
+            shape_func_interface_electrode = csr_matrix(np.vstack([ shape_func_b_times_det_J_b_time_weight_electrolyte_electrode_electrode.toarray(), shape_func_b_times_det_J_b_time_weight_electrode_pore_electrode.toarray() ]))
 
             K_electrode, f_electrode = diffusion_matrix_fuel_cell(dimention, line_source_electrode, shape_func_line_n_nodes_electrode_times_det_J_b_time_weight, g_diretchlet_electrode, beta_Nitsche_electrode, normal_vector_x_electrode, normal_vector_y_electrode, diffusion_electrode,grad_shape_func_x_electrode,grad_shape_func_y_electrode,grad_shape_func_x_times_det_J_time_weight_electrode,grad_shape_func_y_times_det_J_time_weight_electrode,\
                      shape_func_b_electrode,shape_func_b_times_det_J_b_time_weight_electrode,grad_shape_func_b_x_times_det_J_b_time_weight_electrode, grad_shape_func_b_y_times_det_J_b_time_weight_electrode, shape_func_interface_electrode, interface_source_electrode, grad_shape_func_z_electrode, grad_shape_func_z_times_det_J_time_weight_electrode, grad_shape_func_b_z_times_det_J_b_time_weight_electrode, normal_vector_z_electrode)
@@ -857,7 +857,23 @@ if studied_physics == "fuel cell":
                      shape_func_b_pore,shape_func_b_times_det_J_b_time_weight_pore,grad_shape_func_b_x_times_det_J_b_time_weight_pore, grad_shape_func_b_y_times_det_J_b_time_weight_pore, shape_func_b_times_det_J_b_time_weight_electrode_pore_pore, interface_source_electrode_pore_pore, grad_shape_func_z_pore, grad_shape_func_z_times_det_J_time_weight_pore, grad_shape_func_b_z_times_det_J_b_time_weight_pore, normal_vector_z_pore)
 
 
-            K = block_diag((K_electrolyte, K_electrode, K_pore), format='csc')
+            Ke = K_electrolyte.toarray()
+            Kc = K_electrode.toarray()
+            Kp = K_pore.toarray()
+
+            # build zero blocks with *correct shapes*
+            Z_ec = np.zeros((Ke.shape[0], Kc.shape[1]))
+            Z_ep = np.zeros((Ke.shape[0], Kp.shape[1]))
+            Z_ce = np.zeros((Kc.shape[0], Ke.shape[1]))
+            Z_cp = np.zeros((Kc.shape[0], Kp.shape[1]))
+            Z_pe = np.zeros((Kp.shape[0], Ke.shape[1]))
+            Z_pc = np.zeros((Kp.shape[0], Kc.shape[1]))
+
+            K = csr_matrix(np.block([
+                [Ke,   Z_ec, Z_ep],
+                [Z_ce, Kc,   Z_cp],
+                [Z_pe, Z_pc, Kp  ]
+            ]))
             f = np.concatenate((f_electrolyte, f_electrode, f_pore))
 
             results_new = spsolve(K, f)
