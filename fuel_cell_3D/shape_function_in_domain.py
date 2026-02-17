@@ -17,6 +17,7 @@ implementations for performance.
 """
 
 from common import np
+from config import USE_SPARSE_H_MATRICES
 
 # Try to import the vectorized versions if available
 try:
@@ -661,6 +662,7 @@ def compute_phi_M(
                 BxByCxCy,
                 M_P_z,
                 dtype,
+                use_sparse_h_matrices=USE_SPARSE_H_MATRICES,
             )
         else:
             return compute_phi_M_standard(
