@@ -202,8 +202,8 @@ def x_G_b_and_det_J_b_time_weight_3d_fuelcell_2d_boundary_interface_vectorized(
         < tol
     )
 
-    x_G = []
-    det_J_time_weight = []
+    x_G_arrays = []
+    det_J_arrays = []
 
     # Prepare shape functions for bilinear interpolation
     xi = x_G_domain[:, 0]  # First coordinate in reference space
@@ -245,7 +245,7 @@ def x_G_b_and_det_J_b_time_weight_3d_fuelcell_2d_boundary_interface_vectorized(
         # Result shape: (n_y_cells, n_gauss)
         x_G_points = np.einsum("gj,ij->ig", N, x_ver)  # (n_y_cells, n_gauss)
         z_G_points = np.einsum("gj,ij->ig", N, z_ver)  # (n_y_cells, n_gauss)
-        y_G_points = np.repeat(y_ver[:, 0:1], n_gauss, axis=1)  # (n_y_cells, n_gauss)
+        y_G_points = y_ver[:, 0:1] + np.zeros((1, n_gauss), dtype=y_ver.dtype)  # (n_y_cells, n_gauss)
 
         # Compute Jacobian components for all cells and Gauss points
         J11 = np.einsum("gj,ij->ig", dN_dxi, x_ver)  # dx/dxi
@@ -259,11 +259,11 @@ def x_G_b_and_det_J_b_time_weight_3d_fuelcell_2d_boundary_interface_vectorized(
         # Multiply by weights
         det_J_weighted = det_J * weight_G_domain[np.newaxis, :]  # (n_y_cells, n_gauss)
 
-        # Flatten and add to results
-        for i in range(n_y_cells):
-            for k in range(n_gauss):
-                x_G.append([x_G_points[i, k], y_G_points[i, k], z_G_points[i, k]])
-                det_J_time_weight.append(det_J_weighted[i, k])
+        # Vectorized output assembly - no Python loop, stays on GPU
+        x_G_arrays.append(
+            np.stack([x_G_points.ravel(), y_G_points.ravel(), z_G_points.ravel()], axis=1)
+        )
+        det_J_arrays.append(det_J_weighted.ravel())
 
     # Process x-constant surfaces (perpendicular to x-axis) - fully vectorized
     if np.any(x_constant):
@@ -278,7 +278,7 @@ def x_G_b_and_det_J_b_time_weight_3d_fuelcell_2d_boundary_interface_vectorized(
         # Compute physical coordinates for all cells and all Gauss points
         y_G_points = np.einsum("gj,ij->ig", N, y_ver)  # (n_x_cells, n_gauss)
         z_G_points = np.einsum("gj,ij->ig", N, z_ver)  # (n_x_cells, n_gauss)
-        x_G_points = np.repeat(x_ver[:, 0:1], n_gauss, axis=1)  # (n_x_cells, n_gauss)
+        x_G_points = x_ver[:, 0:1] + np.zeros((1, n_gauss), dtype=x_ver.dtype)  # (n_x_cells, n_gauss)
 
         # Compute Jacobian components for all cells and Gauss points
         J11 = np.einsum("gj,ij->ig", dN_dxi, y_ver)  # dy/dxi
@@ -292,11 +292,11 @@ def x_G_b_and_det_J_b_time_weight_3d_fuelcell_2d_boundary_interface_vectorized(
         # Multiply by weights
         det_J_weighted = det_J * weight_G_domain[np.newaxis, :]  # (n_x_cells, n_gauss)
 
-        # Flatten and add to results
-        for i in range(n_x_cells):
-            for k in range(n_gauss):
-                x_G.append([x_G_points[i, k], y_G_points[i, k], z_G_points[i, k]])
-                det_J_time_weight.append(det_J_weighted[i, k])
+        # Vectorized output assembly - no Python loop, stays on GPU
+        x_G_arrays.append(
+            np.stack([x_G_points.ravel(), y_G_points.ravel(), z_G_points.ravel()], axis=1)
+        )
+        det_J_arrays.append(det_J_weighted.ravel())
 
     # Process z-constant surfaces (perpendicular to z-axis) - fully vectorized
     if np.any(z_constant):
@@ -311,7 +311,7 @@ def x_G_b_and_det_J_b_time_weight_3d_fuelcell_2d_boundary_interface_vectorized(
         # Compute physical coordinates for all cells and all Gauss points
         x_G_points = np.einsum("gj,ij->ig", N, x_ver)  # (n_z_cells, n_gauss)
         y_G_points = np.einsum("gj,ij->ig", N, y_ver)  # (n_z_cells, n_gauss)
-        z_G_points = np.repeat(z_ver[:, 0:1], n_gauss, axis=1)  # (n_z_cells, n_gauss)
+        z_G_points = z_ver[:, 0:1] + np.zeros((1, n_gauss), dtype=z_ver.dtype)  # (n_z_cells, n_gauss)
 
         # Compute Jacobian components for all cells and Gauss points
         J11 = np.einsum("gj,ij->ig", dN_dxi, x_ver)  # dx/dxi
@@ -325,13 +325,16 @@ def x_G_b_and_det_J_b_time_weight_3d_fuelcell_2d_boundary_interface_vectorized(
         # Multiply by weights
         det_J_weighted = det_J * weight_G_domain[np.newaxis, :]  # (n_z_cells, n_gauss)
 
-        # Flatten and add to results
-        for i in range(n_z_cells):
-            for k in range(n_gauss):
-                x_G.append([x_G_points[i, k], y_G_points[i, k], z_G_points[i, k]])
-                det_J_time_weight.append(det_J_weighted[i, k])
+        # Vectorized output assembly - no Python loop, stays on GPU
+        x_G_arrays.append(
+            np.stack([x_G_points.ravel(), y_G_points.ravel(), z_G_points.ravel()], axis=1)
+        )
+        det_J_arrays.append(det_J_weighted.ravel())
 
-    return x_G, det_J_time_weight
+    if len(x_G_arrays) > 0:
+        return np.concatenate(x_G_arrays, axis=0), np.concatenate(det_J_arrays)
+    else:
+        return np.zeros((0, 3)), np.zeros(0)
 
 
 def x_G_b_and_det_J_b_time_weight_3d_fuelcell_2d_boundary_vectorized(
@@ -431,13 +434,8 @@ def x_G_b_and_det_J_b_time_weight_3d_fuelcell_2d_boundary_vectorized(
     # Multiply by weights
     det_J_weighted = det_J * weight_G_domain[np.newaxis, :]  # Shape: (n_cells, n_gauss)
 
-    # Flatten and create output lists
-    x_G = []
-    det_J_time_weight = []
-
-    for i in range(n_cells):
-        for k in range(n_gauss):
-            x_G.append([x_G_all[i, k], y_G_all[i, k], z_G_all[i, k]])
-            det_J_time_weight.append(det_J_weighted[i, k])
+    # Vectorized output assembly - no Python loop, stays on GPU
+    x_G = np.stack([x_G_all.ravel(), y_G_all.ravel(), z_G_all.ravel()], axis=1)
+    det_J_time_weight = det_J_weighted.ravel()
 
     return x_G, det_J_time_weight
