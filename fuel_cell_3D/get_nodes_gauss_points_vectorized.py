@@ -202,8 +202,10 @@ def x_G_b_and_det_J_b_time_weight_3d_fuelcell_2d_boundary_interface_vectorized(
         < tol
     )
 
-    x_G = []
-    det_J_time_weight = []
+    # Accumulate per-face blocks; concatenate once at the end to avoid
+    # element-wise GPU→CPU materialisation from Python list appends.
+    x_G_blocks = []
+    det_J_blocks = []
 
     # Prepare shape functions for bilinear interpolation
     xi = x_G_domain[:, 0]  # First coordinate in reference space
@@ -230,10 +232,13 @@ def x_G_b_and_det_J_b_time_weight_3d_fuelcell_2d_boundary_interface_vectorized(
     dN_deta[:, 2] = 0.25 * (1 + xi)
     dN_deta[:, 3] = 0.25 * (1 - xi)
 
+    # Broadcast helper: tile a (n, 1) column to (n, n_gauss) without np.repeat
+    # (cuPyNumeric does not implement ndarray.repeat; broadcast multiply by ones stays GPU).
+    _ones_row = np.ones((1, n_gauss))
+
     # Process y-constant surfaces (perpendicular to y-axis) - fully vectorized
     if np.any(y_constant):
         y_const_idx = np.where(y_constant)[0]
-        n_y_cells = len(y_const_idx)
 
         # Get vertices for all y-constant cells
         x_ver = cell_nodes_boundary_x[y_const_idx, :]  # (n_y_cells, 4)
@@ -241,34 +246,27 @@ def x_G_b_and_det_J_b_time_weight_3d_fuelcell_2d_boundary_interface_vectorized(
         z_ver = cell_nodes_boundary_z[y_const_idx, :]  # (n_y_cells, 4)
 
         # Compute physical coordinates for all cells and all Gauss points
-        # Using einsum for efficient batch matrix multiplication
         # Result shape: (n_y_cells, n_gauss)
-        x_G_points = np.einsum("gj,ij->ig", N, x_ver)  # (n_y_cells, n_gauss)
-        z_G_points = np.einsum("gj,ij->ig", N, z_ver)  # (n_y_cells, n_gauss)
-        y_G_points = np.repeat(y_ver[:, 0:1], n_gauss, axis=1)  # (n_y_cells, n_gauss)
+        x_G_points = np.einsum("gj,ij->ig", N, x_ver)
+        z_G_points = np.einsum("gj,ij->ig", N, z_ver)
+        y_G_points = y_ver[:, 0:1] * _ones_row  # broadcast instead of repeat
 
         # Compute Jacobian components for all cells and Gauss points
-        J11 = np.einsum("gj,ij->ig", dN_dxi, x_ver)  # dx/dxi
-        J12 = np.einsum("gj,ij->ig", dN_dxi, z_ver)  # dz/dxi
+        J11 = np.einsum("gj,ij->ig", dN_dxi, x_ver)   # dx/dxi
+        J12 = np.einsum("gj,ij->ig", dN_dxi, z_ver)   # dz/dxi
         J21 = np.einsum("gj,ij->ig", dN_deta, x_ver)  # dx/deta
         J22 = np.einsum("gj,ij->ig", dN_deta, z_ver)  # dz/deta
 
-        # Compute determinants
-        det_J = J11 * J22 - J12 * J21  # (n_y_cells, n_gauss)
+        det_J_weighted = (J11 * J22 - J12 * J21) * weight_G_domain[np.newaxis, :]
 
-        # Multiply by weights
-        det_J_weighted = det_J * weight_G_domain[np.newaxis, :]  # (n_y_cells, n_gauss)
-
-        # Flatten and add to results
-        for i in range(n_y_cells):
-            for k in range(n_gauss):
-                x_G.append([x_G_points[i, k], y_G_points[i, k], z_G_points[i, k]])
-                det_J_time_weight.append(det_J_weighted[i, k])
+        x_G_blocks.append(
+            np.stack([x_G_points.ravel(), y_G_points.ravel(), z_G_points.ravel()], axis=1)
+        )
+        det_J_blocks.append(det_J_weighted.ravel())
 
     # Process x-constant surfaces (perpendicular to x-axis) - fully vectorized
     if np.any(x_constant):
         x_const_idx = np.where(x_constant)[0]
-        n_x_cells = len(x_const_idx)
 
         # Get vertices for all x-constant cells
         x_ver = cell_nodes_boundary_x[x_const_idx, :]  # (n_x_cells, 4)
@@ -276,32 +274,26 @@ def x_G_b_and_det_J_b_time_weight_3d_fuelcell_2d_boundary_interface_vectorized(
         z_ver = cell_nodes_boundary_z[x_const_idx, :]  # (n_x_cells, 4)
 
         # Compute physical coordinates for all cells and all Gauss points
-        y_G_points = np.einsum("gj,ij->ig", N, y_ver)  # (n_x_cells, n_gauss)
-        z_G_points = np.einsum("gj,ij->ig", N, z_ver)  # (n_x_cells, n_gauss)
-        x_G_points = np.repeat(x_ver[:, 0:1], n_gauss, axis=1)  # (n_x_cells, n_gauss)
+        y_G_points = np.einsum("gj,ij->ig", N, y_ver)
+        z_G_points = np.einsum("gj,ij->ig", N, z_ver)
+        x_G_points = x_ver[:, 0:1] * _ones_row  # broadcast instead of repeat
 
         # Compute Jacobian components for all cells and Gauss points
-        J11 = np.einsum("gj,ij->ig", dN_dxi, y_ver)  # dy/dxi
-        J12 = np.einsum("gj,ij->ig", dN_dxi, z_ver)  # dz/dxi
+        J11 = np.einsum("gj,ij->ig", dN_dxi, y_ver)   # dy/dxi
+        J12 = np.einsum("gj,ij->ig", dN_dxi, z_ver)   # dz/dxi
         J21 = np.einsum("gj,ij->ig", dN_deta, y_ver)  # dy/deta
         J22 = np.einsum("gj,ij->ig", dN_deta, z_ver)  # dz/deta
 
-        # Compute determinants
-        det_J = J11 * J22 - J12 * J21  # (n_x_cells, n_gauss)
+        det_J_weighted = (J11 * J22 - J12 * J21) * weight_G_domain[np.newaxis, :]
 
-        # Multiply by weights
-        det_J_weighted = det_J * weight_G_domain[np.newaxis, :]  # (n_x_cells, n_gauss)
-
-        # Flatten and add to results
-        for i in range(n_x_cells):
-            for k in range(n_gauss):
-                x_G.append([x_G_points[i, k], y_G_points[i, k], z_G_points[i, k]])
-                det_J_time_weight.append(det_J_weighted[i, k])
+        x_G_blocks.append(
+            np.stack([x_G_points.ravel(), y_G_points.ravel(), z_G_points.ravel()], axis=1)
+        )
+        det_J_blocks.append(det_J_weighted.ravel())
 
     # Process z-constant surfaces (perpendicular to z-axis) - fully vectorized
     if np.any(z_constant):
         z_const_idx = np.where(z_constant)[0]
-        n_z_cells = len(z_const_idx)
 
         # Get vertices for all z-constant cells
         x_ver = cell_nodes_boundary_x[z_const_idx, :]  # (n_z_cells, 4)
@@ -309,29 +301,26 @@ def x_G_b_and_det_J_b_time_weight_3d_fuelcell_2d_boundary_interface_vectorized(
         z_ver = cell_nodes_boundary_z[z_const_idx, :]  # (n_z_cells, 4)
 
         # Compute physical coordinates for all cells and all Gauss points
-        x_G_points = np.einsum("gj,ij->ig", N, x_ver)  # (n_z_cells, n_gauss)
-        y_G_points = np.einsum("gj,ij->ig", N, y_ver)  # (n_z_cells, n_gauss)
-        z_G_points = np.repeat(z_ver[:, 0:1], n_gauss, axis=1)  # (n_z_cells, n_gauss)
+        x_G_points = np.einsum("gj,ij->ig", N, x_ver)
+        y_G_points = np.einsum("gj,ij->ig", N, y_ver)
+        z_G_points = z_ver[:, 0:1] * _ones_row  # broadcast instead of repeat
 
         # Compute Jacobian components for all cells and Gauss points
-        J11 = np.einsum("gj,ij->ig", dN_dxi, x_ver)  # dx/dxi
-        J12 = np.einsum("gj,ij->ig", dN_dxi, y_ver)  # dy/dxi
+        J11 = np.einsum("gj,ij->ig", dN_dxi, x_ver)   # dx/dxi
+        J12 = np.einsum("gj,ij->ig", dN_dxi, y_ver)   # dy/dxi
         J21 = np.einsum("gj,ij->ig", dN_deta, x_ver)  # dx/deta
         J22 = np.einsum("gj,ij->ig", dN_deta, y_ver)  # dy/deta
 
-        # Compute determinants
-        det_J = J11 * J22 - J12 * J21  # (n_z_cells, n_gauss)
+        det_J_weighted = (J11 * J22 - J12 * J21) * weight_G_domain[np.newaxis, :]
 
-        # Multiply by weights
-        det_J_weighted = det_J * weight_G_domain[np.newaxis, :]  # (n_z_cells, n_gauss)
+        x_G_blocks.append(
+            np.stack([x_G_points.ravel(), y_G_points.ravel(), z_G_points.ravel()], axis=1)
+        )
+        det_J_blocks.append(det_J_weighted.ravel())
 
-        # Flatten and add to results
-        for i in range(n_z_cells):
-            for k in range(n_gauss):
-                x_G.append([x_G_points[i, k], y_G_points[i, k], z_G_points[i, k]])
-                det_J_time_weight.append(det_J_weighted[i, k])
-
-    return x_G, det_J_time_weight
+    if x_G_blocks:
+        return np.concatenate(x_G_blocks, axis=0), np.concatenate(det_J_blocks)
+    return np.zeros((0, 3)), np.zeros(0)
 
 
 def x_G_b_and_det_J_b_time_weight_3d_fuelcell_2d_boundary_vectorized(
@@ -431,13 +420,8 @@ def x_G_b_and_det_J_b_time_weight_3d_fuelcell_2d_boundary_vectorized(
     # Multiply by weights
     det_J_weighted = det_J * weight_G_domain[np.newaxis, :]  # Shape: (n_cells, n_gauss)
 
-    # Flatten and create output lists
-    x_G = []
-    det_J_time_weight = []
-
-    for i in range(n_cells):
-        for k in range(n_gauss):
-            x_G.append([x_G_all[i, k], y_G_all[i, k], z_G_all[i, k]])
-            det_J_time_weight.append(det_J_weighted[i, k])
+    # Flatten without element-wise Python loops (which force GPU→CPU materialisation).
+    x_G = np.stack([x_G_all.ravel(), y_G_all.ravel(), z_G_all.ravel()], axis=1)
+    det_J_time_weight = det_J_weighted.ravel()
 
     return x_G, det_J_time_weight

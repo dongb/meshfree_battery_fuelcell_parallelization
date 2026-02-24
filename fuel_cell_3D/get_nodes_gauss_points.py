@@ -2607,9 +2607,10 @@ def x_G_and_det_J_line_3d_fuelcell_1d_boundary(
             np.newaxis, :
         ] + (y_ver2[y_idx] + y_ver1[y_idx])[:, np.newaxis] / 2
 
-        # Expand fixed coordinates
-        x_G = x_ver1[y_idx][:, np.newaxis].repeat(n_gauss, axis=1)
-        z_G = z_ver1[y_idx][:, np.newaxis].repeat(n_gauss, axis=1)
+        # Expand fixed coordinates (broadcast instead of repeat — cuPyNumeric fallback)
+        _ones = np.ones((1, n_gauss))
+        x_G = x_ver1[y_idx][:, np.newaxis] * _ones
+        z_G = z_ver1[y_idx][:, np.newaxis] * _ones
 
         # Stack and reshape to (n_segments * n_gauss, 3)
         points_y = np.stack([x_G.ravel(), y_G.ravel(), z_G.ravel()], axis=1)
@@ -2634,9 +2635,10 @@ def x_G_and_det_J_line_3d_fuelcell_1d_boundary(
             np.newaxis, :
         ] + (z_ver2[z_idx] + z_ver1[z_idx])[:, np.newaxis] / 2
 
-        # Expand fixed coordinates
-        x_G = x_ver1[z_idx][:, np.newaxis].repeat(n_gauss, axis=1)
-        y_G = y_ver1[z_idx][:, np.newaxis].repeat(n_gauss, axis=1)
+        # Expand fixed coordinates (broadcast instead of repeat — cuPyNumeric fallback)
+        _ones = np.ones((1, n_gauss))
+        x_G = x_ver1[z_idx][:, np.newaxis] * _ones
+        y_G = y_ver1[z_idx][:, np.newaxis] * _ones
 
         # Stack and reshape to (n_segments * n_gauss, 3)
         points_z = np.stack([x_G.ravel(), y_G.ravel(), z_G.ravel()], axis=1)
@@ -2661,9 +2663,10 @@ def x_G_and_det_J_line_3d_fuelcell_1d_boundary(
             np.newaxis, :
         ] + (x_ver2[x_idx] + x_ver1[x_idx])[:, np.newaxis] / 2
 
-        # Expand fixed coordinates
-        y_G = y_ver1[x_idx][:, np.newaxis].repeat(n_gauss, axis=1)
-        z_G = z_ver1[x_idx][:, np.newaxis].repeat(n_gauss, axis=1)
+        # Expand fixed coordinates (broadcast instead of repeat — cuPyNumeric fallback)
+        _ones = np.ones((1, n_gauss))
+        y_G = y_ver1[x_idx][:, np.newaxis] * _ones
+        z_G = z_ver1[x_idx][:, np.newaxis] * _ones
 
         # Stack and reshape to (n_segments * n_gauss, 3)
         points_x = np.stack([x_G.ravel(), y_G.ravel(), z_G.ravel()], axis=1)
