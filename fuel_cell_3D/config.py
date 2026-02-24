@@ -141,9 +141,11 @@ K_F = 0.015  # Final damage parameter
 # ==============================================================================
 
 # Image file for geometry (used when SINGLE_GRAIN = False)
-#IMAGE_FILE_NAME = "M_3d_3phases_2K.tif"  # 2K Voxels
-IMAGE_FILE_NAME = "M_3d_3phases_16K.tif"  # 16K Voxels
-
+#IMAGE_FILE_NAME = "M_3d_3phases_num_cell_31250.tif"  # 4g
+#IMAGE_FILE_NAME = "M_3d_3phases_num_cell_21296.tif"  # 2g
+#IMAGE_FILE_NAME = "M_3d_3phases_num_cell_16000.tif"  # 1g
+IMAGE_FILE_NAME = "M_3d_3phases_2K.tif"  # 1g
+#M_3d_3phases_num_cell_16000.tif  M_3d_3phases_num_cell_21296.tif  M_3d_3phases_num_cell_31250.tif
 # ==============================================================================
 # GAUSS INTEGRATION POINTS AND WEIGHTS
 # ==============================================================================

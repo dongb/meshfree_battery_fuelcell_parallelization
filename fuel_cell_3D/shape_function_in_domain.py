@@ -18,6 +18,7 @@ implementations for performance.
 
 from common import np
 from config import USE_SPARSE_H_MATRICES
+from shape_grad_func_vectorized import batch_matrix_inverse
 
 # Try to import the vectorized versions if available
 try:
@@ -1229,8 +1230,10 @@ def shape_func_n_nodes_by_n_nodes_vectorized(
     # Get relevant M matrices and compute inverses
     M_sparse = M[row_indices]  # (num_non_zero, basis_size, basis_size)
 
-    # Compute M inverses for all relevant matrices at once
-    M_inv = np.linalg.inv(
+    # Compute M inverses for all relevant matrices at once.
+    # batch_matrix_inverse uses Gauss-Jordan elimination (GPU-native) instead of
+    # np.linalg.inv which falls back to CPU in cuPyNumeric.
+    M_inv = batch_matrix_inverse(
         M_sparse.astype(np.float64)
     )  # (num_non_zero, basis_size, basis_size)
 

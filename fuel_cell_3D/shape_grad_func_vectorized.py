@@ -105,18 +105,46 @@ def compute_H_matrices_sparse_3d(
 
 
 def batch_matrix_inverse(matrices):
-    """Compute inverses of multiple matrices in a batch.
+    """Batched matrix inverse using Gauss-Jordan elimination.
+
+    Replaces np.linalg.inv, which falls back to CPU in cuPyNumeric, with an
+    implementation built from element-wise and broadcast operations that remain
+    on the GPU throughout.
+
+    Assumes positive-definite input (RKPM moment matrices are P.D. when the
+    support contains enough neighbours), so no partial pivoting is required.
 
     Args:
-        matrices: Array of shape (n_matrices, dim, dim)
+        matrices: Array of shape (N, n, n)
 
     Returns:
-        Array of inverted matrices with same shape
+        Array of shape (N, n, n) containing the inverse of each matrix.
     """
-    # Use NumPy's native batched matrix inverse
-    # np.linalg.inv supports arrays with shape (..., M, M)
-    # and computes the inverse for each matrix in the batch
-    return np.linalg.inv(matrices)
+    N, n, _ = matrices.shape
+
+    # Build augmented matrix [A | I], shape (N, n, 2n).
+    aug = np.zeros((N, n, 2 * n), dtype=np.float64)
+    aug[:, :, :n] = matrices.astype(np.float64)
+    for i in range(n):
+        aug[:, i, n + i] = 1.0
+
+    # Gauss-Jordan elimination — no pivoting needed for P.D. matrices.
+    for pivot in range(n):
+        # Normalise pivot row so the diagonal becomes 1.
+        scale = aug[:, pivot, pivot]          # (N,)
+        aug[:, pivot, :] = aug[:, pivot, :] / scale[:, np.newaxis]
+
+        # Zero the pivot column in every other row.
+        for row in range(n):
+            if row == pivot:
+                continue
+            # Capture factor before the row is overwritten.
+            factor = aug[:, row, pivot]       # (N,)
+            aug[:, row, :] = (
+                aug[:, row, :] - factor[:, np.newaxis] * aug[:, pivot, :]
+            )
+
+    return aug[:, :, n:]
 
 
 def shape_grad_shape_func_vectorized(
@@ -182,12 +210,11 @@ def shape_grad_shape_func_vectorized(
     M_subset = M[unique_gauss_points]
     M_inv_all = batch_matrix_inverse(M_subset)
 
-    # Create mapping from global to local indices
-    gauss_to_local = {g: i for i, g in enumerate(unique_gauss_points)}
-
-    # Pre-compute M_inv for each sparse pair
-    M_inv_indices = np.array(
-        [gauss_to_local[int(g)] for g in phi_nonzero_index_row], dtype=np.int32
+    # Map each phi_nonzero_index_row entry to its position in unique_gauss_points.
+    # np.unique returns a sorted array, so searchsorted gives the correct local index
+    # for every entry without materialising either array on the CPU.
+    M_inv_indices = np.searchsorted(unique_gauss_points, phi_nonzero_index_row).astype(
+        np.int32
     )
     M_inv_sparse = M_inv_all[M_inv_indices]  # (num_non_zero_phi_a, n_dim, n_dim)
 

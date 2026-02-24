@@ -4,7 +4,7 @@ This module provides vectorized implementations that operate on all Gauss points
 and nodes simultaneously, eliminating the need for explicit loops.
 """
 
-from common import np
+from common import csr_array, np
 
 
 def compute_z_and_H_2d_vectorized(
@@ -679,12 +679,43 @@ def compute_phi_M_standard_sparse(
     # Shape: (n_interactions, n_dim, n_dim)
     print("Computing outer products for M matrices", flush=True)
 
+    # Replace np.add.at (CPU fallback) with GPU-native scatter-sum via SpMV.
+    # Build sparse selection matrix P of shape (n_gauss, n_nnz) once:
+    #   P[gauss_indices[k], k] = 1
+    # For each of the n_dim² columns, P @ col_vec performs a GPU-native SpMV
+    # that accumulates contributions into the correct Gauss-point row.
+    #
+    # Use CSR (data, indices, indptr) format directly rather than COO
+    # (data, (rows, cols)) to avoid a cuPyNumeric lexsort bug in legate_sparse
+    # that corrupts index values for small n_nnz.
+    # gauss_indices is non-decreasing (it comes from np.where on a 2D row-major
+    # array), so indptr = cumsum of per-row counts.
+    # Note: legate_sparse csr_array supports SpMV (csr @ 1d) but not SpMM
+    # (csr @ 2d), so we keep the column-wise loop.
+    n_nnz = len(gauss_indices)
+    n_gauss_M = M.shape[0]
+    n_dim = M.shape[1]          # 4 for 3D RKPM
+    n_dim_sq = n_dim * n_dim
+    counts_P = np.bincount(gauss_indices, minlength=n_gauss_M).astype(np.int64)
+    indptr_P = np.concatenate([np.zeros(1, dtype=np.int64), np.cumsum(counts_P)])
+    col_indices_P = np.arange(n_nnz, dtype=np.int64)
+    P = csr_array(
+        (np.ones(n_nnz, dtype=phi_vals.dtype), col_indices_P, indptr_P),
+        shape=(n_gauss_M, n_nnz),
+    )
+
+    def _scatter_sum(values_3d):
+        """Scatter-sum (n_nnz, n_dim, n_dim) → (n_gauss, n_dim, n_dim) via SpMV loop."""
+        flat = values_3d.reshape(n_nnz, n_dim_sq)
+        out = np.zeros((n_gauss_M, n_dim_sq), dtype=values_3d.dtype)
+        for col in range(n_dim_sq):
+            out[:, col] = P @ flat[:, col]
+        return out.reshape(n_gauss_M, n_dim, n_dim)
+
     # For M: H @ H_T * phi
     outer_HH = H_vals[:, :, np.newaxis] * H_T_vals[:, np.newaxis, :]
     weighted_HH = outer_HH * phi_vals[:, np.newaxis, np.newaxis]
-
-    # Use np.add.at for efficient accumulation
-    np.add.at(M, gauss_indices, weighted_HH)
+    M[:] = _scatter_sum(weighted_HH)
 
     # For M_P_x: three terms
     # Term 1: H @ H_T * phi_P_x
@@ -698,8 +729,7 @@ def compute_phi_M_standard_sparse(
     outer_HHPx = H_vals[:, :, np.newaxis] * HT_P_x_vals[:, np.newaxis, :]
     weighted_HHPx = outer_HHPx * phi_vals[:, np.newaxis, np.newaxis]
 
-    # Accumulate all three terms for M_P_x
-    np.add.at(M_P_x, gauss_indices, weighted_HH_phi_P_x + weighted_HPxH + weighted_HHPx)
+    M_P_x[:] = _scatter_sum(weighted_HH_phi_P_x + weighted_HPxH + weighted_HHPx)
 
     # For M_P_y: three terms (similar structure)
     # Term 1: H @ H_T * phi_P_y
@@ -713,8 +743,7 @@ def compute_phi_M_standard_sparse(
     outer_HHPy = H_vals[:, :, np.newaxis] * HT_P_y_vals[:, np.newaxis, :]
     weighted_HHPy = outer_HHPy * phi_vals[:, np.newaxis, np.newaxis]
 
-    # Accumulate all three terms for M_P_y
-    np.add.at(M_P_y, gauss_indices, weighted_HH_phi_P_y + weighted_HPyH + weighted_HHPy)
+    M_P_y[:] = _scatter_sum(weighted_HH_phi_P_y + weighted_HPyH + weighted_HHPy)
 
     if is_3d:
         # Extract H_P_z and HT_P_z values
@@ -739,10 +768,7 @@ def compute_phi_M_standard_sparse(
         outer_HHPz = H_vals[:, :, np.newaxis] * HT_P_z_vals[:, np.newaxis, :]
         weighted_HHPz = outer_HHPz * phi_vals[:, np.newaxis, np.newaxis]
 
-        # Accumulate all three terms for M_P_z
-        np.add.at(
-            M_P_z, gauss_indices, weighted_HH_phi_P_z + weighted_HPzH + weighted_HHPz
-        )
+        M_P_z[:] = _scatter_sum(weighted_HH_phi_P_z + weighted_HPzH + weighted_HHPz)
 
     return (
         phi_nonzero_index_row,

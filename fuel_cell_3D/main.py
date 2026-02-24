@@ -1309,22 +1309,10 @@ print("Compute shape function and its gradient on boundaries", flush=True)
 
 
 if dimension == 3:
-    M_b_electrolyte = np.array(
-        [np.zeros((4, 4)) for _ in range(num_gauss_points_on_boundary_electrolyte)],
-        dtype=np.float64,
-    )
-    M_b_P_x_electrolyte = np.array(
-        [np.zeros((4, 4)) for _ in range(num_gauss_points_on_boundary_electrolyte)],
-        dtype=np.float64,
-    )
-    M_b_P_y_electrolyte = np.array(
-        [np.zeros((4, 4)) for _ in range(num_gauss_points_on_boundary_electrolyte)],
-        dtype=np.float64,
-    )
-    M_b_P_z_electrolyte = np.array(
-        [np.zeros((4, 4)) for _ in range(num_gauss_points_on_boundary_electrolyte)],
-        dtype=np.float64,
-    )
+    M_b_electrolyte = np.zeros((num_gauss_points_on_boundary_electrolyte, 4, 4))
+    M_b_P_x_electrolyte = np.zeros((num_gauss_points_on_boundary_electrolyte, 4, 4))
+    M_b_P_y_electrolyte = np.zeros((num_gauss_points_on_boundary_electrolyte, 4, 4))
+    M_b_P_z_electrolyte = np.zeros((num_gauss_points_on_boundary_electrolyte, 4, 4))
     (
         phi_b_nonzero_index_row_electrolyte,
         phi_b_nonzero_index_column_electrolyte,
@@ -1353,22 +1341,10 @@ if dimension == 3:
         M_b_P_z_electrolyte,
     )
 
-    M_b_mechanical = np.array(
-        [np.zeros((4, 4)) for _ in range(num_gauss_points_on_boundary_electrolyte)],
-        dtype=np.float64,
-    )
-    M_b_P_x_mechanical = np.array(
-        [np.zeros((4, 4)) for _ in range(num_gauss_points_on_boundary_electrolyte)],
-        dtype=np.float64,
-    )
-    M_b_P_y_mechanical = np.array(
-        [np.zeros((4, 4)) for _ in range(num_gauss_points_on_boundary_electrolyte)],
-        dtype=np.float64,
-    )
-    M_b_P_z_mechanical = np.array(
-        [np.zeros((4, 4)) for _ in range(num_gauss_points_on_boundary_electrolyte)],
-        dtype=np.float64,
-    )
+    M_b_mechanical = np.zeros((num_gauss_points_on_boundary_electrolyte, 4, 4))
+    M_b_P_x_mechanical = np.zeros((num_gauss_points_on_boundary_electrolyte, 4, 4))
+    M_b_P_y_mechanical = np.zeros((num_gauss_points_on_boundary_electrolyte, 4, 4))
+    M_b_P_z_mechanical = np.zeros((num_gauss_points_on_boundary_electrolyte, 4, 4))
     (
         phi_b_nonzero_index_row_mechanical,
         phi_b_nonzero_index_column_mechanical,
@@ -1635,22 +1611,10 @@ if dimension == 3:
 
 
 if dimension == 3:
-    M_b_electrode = np.array(
-        [np.zeros((4, 4)) for _ in range(num_gauss_points_on_boundary_electrode)],
-        dtype=np.float64,
-    )
-    M_b_P_x_electrode = np.array(
-        [np.zeros((4, 4)) for _ in range(num_gauss_points_on_boundary_electrode)],
-        dtype=np.float64,
-    )
-    M_b_P_y_electrode = np.array(
-        [np.zeros((4, 4)) for _ in range(num_gauss_points_on_boundary_electrode)],
-        dtype=np.float64,
-    )
-    M_b_P_z_electrode = np.array(
-        [np.zeros((4, 4)) for _ in range(num_gauss_points_on_boundary_electrode)],
-        dtype=np.float64,
-    )
+    M_b_electrode = np.zeros((num_gauss_points_on_boundary_electrode, 4, 4))
+    M_b_P_x_electrode = np.zeros((num_gauss_points_on_boundary_electrode, 4, 4))
+    M_b_P_y_electrode = np.zeros((num_gauss_points_on_boundary_electrode, 4, 4))
+    M_b_P_z_electrode = np.zeros((num_gauss_points_on_boundary_electrode, 4, 4))
     (
         phi_b_nonzero_index_row_electrode,
         phi_b_nonzero_index_column_electrode,
@@ -1679,22 +1643,10 @@ if dimension == 3:
         M_b_P_z_electrode,
     )
 
-    M_b_pore = np.array(
-        [np.zeros((4, 4)) for _ in range(num_gauss_points_on_boundary_pore)],
-        dtype=np.float64,
-    )
-    M_b_P_x_pore = np.array(
-        [np.zeros((4, 4)) for _ in range(num_gauss_points_on_boundary_pore)],
-        dtype=np.float64,
-    )
-    M_b_P_y_pore = np.array(
-        [np.zeros((4, 4)) for _ in range(num_gauss_points_on_boundary_pore)],
-        dtype=np.float64,
-    )
-    M_b_P_z_pore = np.array(
-        [np.zeros((4, 4)) for _ in range(num_gauss_points_on_boundary_pore)],
-        dtype=np.float64,
-    )
+    M_b_pore = np.zeros((num_gauss_points_on_boundary_pore, 4, 4))
+    M_b_P_x_pore = np.zeros((num_gauss_points_on_boundary_pore, 4, 4))
+    M_b_P_y_pore = np.zeros((num_gauss_points_on_boundary_pore, 4, 4))
+    M_b_P_z_pore = np.zeros((num_gauss_points_on_boundary_pore, 4, 4))
     (
         phi_b_nonzero_index_row_pore,
         phi_b_nonzero_index_column_pore,
@@ -1835,22 +1787,10 @@ if dimension == 3:
         M_b_P_z_electrolyte_electrode_electrode,
     )
 
-    M_b_electrode_pore_electrode = np.array(
-        [np.zeros((4, 4)) for _ in range(num_gauss_points_on_electrode_pore_interface)],
-        dtype=np.float64,
-    )
-    M_b_P_x_electrode_pore_electrode = np.array(
-        [np.zeros((4, 4)) for _ in range(num_gauss_points_on_electrode_pore_interface)],
-        dtype=np.float64,
-    )
-    M_b_P_y_electrode_pore_electrode = np.array(
-        [np.zeros((4, 4)) for _ in range(num_gauss_points_on_electrode_pore_interface)],
-        dtype=np.float64,
-    )
-    M_b_P_z_electrode_pore_electrode = np.array(
-        [np.zeros((4, 4)) for _ in range(num_gauss_points_on_electrode_pore_interface)],
-        dtype=np.float64,
-    )
+    M_b_electrode_pore_electrode = np.zeros((num_gauss_points_on_electrode_pore_interface, 4, 4))
+    M_b_P_x_electrode_pore_electrode = np.zeros((num_gauss_points_on_electrode_pore_interface, 4, 4))
+    M_b_P_y_electrode_pore_electrode = np.zeros((num_gauss_points_on_electrode_pore_interface, 4, 4))
+    M_b_P_z_electrode_pore_electrode = np.zeros((num_gauss_points_on_electrode_pore_interface, 4, 4))
     (
         phi_b_nonzero_index_row_electrode_pore_electrode,
         phi_b_nonzero_index_column_electrode_pore_electrode,
@@ -1879,22 +1819,10 @@ if dimension == 3:
         M_b_P_z_electrode_pore_electrode,
     )
 
-    M_b_electrode_pore_pore = np.array(
-        [np.zeros((4, 4)) for _ in range(num_gauss_points_on_electrode_pore_interface)],
-        dtype=np.float64,
-    )
-    M_b_P_x_electrode_pore_pore = np.array(
-        [np.zeros((4, 4)) for _ in range(num_gauss_points_on_electrode_pore_interface)],
-        dtype=np.float64,
-    )
-    M_b_P_y_electrode_pore_pore = np.array(
-        [np.zeros((4, 4)) for _ in range(num_gauss_points_on_electrode_pore_interface)],
-        dtype=np.float64,
-    )
-    M_b_P_z_electrode_pore_pore = np.array(
-        [np.zeros((4, 4)) for _ in range(num_gauss_points_on_electrode_pore_interface)],
-        dtype=np.float64,
-    )
+    M_b_electrode_pore_pore = np.zeros((num_gauss_points_on_electrode_pore_interface, 4, 4))
+    M_b_P_x_electrode_pore_pore = np.zeros((num_gauss_points_on_electrode_pore_interface, 4, 4))
+    M_b_P_y_electrode_pore_pore = np.zeros((num_gauss_points_on_electrode_pore_interface, 4, 4))
+    M_b_P_z_electrode_pore_pore = np.zeros((num_gauss_points_on_electrode_pore_interface, 4, 4))
     (
         phi_b_nonzero_index_row_electrode_pore_pore,
         phi_b_nonzero_index_column_electrode_pore_pore,
@@ -2900,18 +2828,10 @@ if dimension == 3:
 
 
 if dimension == 3:
-    M_electrolyte_nn = np.array(
-        [np.zeros((4, 4)) for _ in range(num_nodes_electrolyte)]
-    )
-    M_P_x_electrolyte_nn = np.array(
-        [np.zeros((4, 4)) for _ in range(num_nodes_electrolyte)]
-    )  # partial M partial x
-    M_P_y_electrolyte_nn = np.array(
-        [np.zeros((4, 4)) for _ in range(num_nodes_electrolyte)]
-    )  # partial M partial y
-    M_P_z_electrolyte_nn = np.array(
-        [np.zeros((4, 4)) for _ in range(num_nodes_electrolyte)]
-    )  # partial M partial y
+    M_electrolyte_nn = np.zeros((num_nodes_electrolyte, 4, 4))
+    M_P_x_electrolyte_nn = np.zeros((num_nodes_electrolyte, 4, 4))  # partial M partial x
+    M_P_y_electrolyte_nn = np.zeros((num_nodes_electrolyte, 4, 4))  # partial M partial y
+    M_P_z_electrolyte_nn = np.zeros((num_nodes_electrolyte, 4, 4))  # partial M partial y
     (
         phi_nonzero_index_row_electrolyte_nn,
         phi_nonzero_index_column_electrolyte_nn,
@@ -2940,16 +2860,10 @@ if dimension == 3:
         M_P_z_electrolyte_nn,
     )
 
-    M_electrode_nn = np.array([np.zeros((4, 4)) for _ in range(num_nodes_electrode)])
-    M_P_x_electrode_nn = np.array(
-        [np.zeros((4, 4)) for _ in range(num_nodes_electrode)]
-    )  # partial M partial x
-    M_P_y_electrode_nn = np.array(
-        [np.zeros((4, 4)) for _ in range(num_nodes_electrode)]
-    )  # partial M partial y
-    M_P_z_electrode_nn = np.array(
-        [np.zeros((4, 4)) for _ in range(num_nodes_electrode)]
-    )  # partial M partial y
+    M_electrode_nn = np.zeros((num_nodes_electrode, 4, 4))
+    M_P_x_electrode_nn = np.zeros((num_nodes_electrode, 4, 4))  # partial M partial x
+    M_P_y_electrode_nn = np.zeros((num_nodes_electrode, 4, 4))  # partial M partial y
+    M_P_z_electrode_nn = np.zeros((num_nodes_electrode, 4, 4))  # partial M partial y
     (
         phi_nonzero_index_row_electrode_nn,
         phi_nonzero_index_column_electrode_nn,
@@ -2978,16 +2892,10 @@ if dimension == 3:
         M_P_z_electrode_nn,
     )
 
-    M_pore_nn = np.array([np.zeros((4, 4)) for _ in range(num_nodes_pore)])
-    M_P_x_pore_nn = np.array(
-        [np.zeros((4, 4)) for _ in range(num_nodes_pore)]
-    )  # partial M partial x
-    M_P_y_pore_nn = np.array(
-        [np.zeros((4, 4)) for _ in range(num_nodes_pore)]
-    )  # partial M partial y
-    M_P_z_pore_nn = np.array(
-        [np.zeros((4, 4)) for _ in range(num_nodes_pore)]
-    )  # partial M partial y
+    M_pore_nn = np.zeros((num_nodes_pore, 4, 4))
+    M_P_x_pore_nn = np.zeros((num_nodes_pore, 4, 4))  # partial M partial x
+    M_P_y_pore_nn = np.zeros((num_nodes_pore, 4, 4))  # partial M partial y
+    M_P_z_pore_nn = np.zeros((num_nodes_pore, 4, 4))  # partial M partial y
     (
         phi_nonzero_index_row_pore_nn,
         phi_nonzero_index_column_pore_nn,
@@ -3090,18 +2998,10 @@ if dimension == 3:
 2. shape function used to interpolate the displacement at the fixed line (3d), shape: number of gauss points on fixed line times number of nodes
 """
 if dimension == 3:
-    M_electrolyte_line_nodes = np.array(
-        [np.zeros((4, 4)) for _ in range(num_source_line_gauss_points)]
-    )
-    M_P_x_electrolyte_line_nodes = np.array(
-        [np.zeros((4, 4)) for _ in range(num_source_line_gauss_points)]
-    )  # partial M partial x
-    M_P_y_electrolyte_line_nodes = np.array(
-        [np.zeros((4, 4)) for _ in range(num_source_line_gauss_points)]
-    )  # partial M partial y
-    M_P_z_electrolyte_line_nodes = np.array(
-        [np.zeros((4, 4)) for _ in range(num_source_line_gauss_points)]
-    )  # partial M partial y
+    M_electrolyte_line_nodes = np.zeros((num_source_line_gauss_points, 4, 4))
+    M_P_x_electrolyte_line_nodes = np.zeros((num_source_line_gauss_points, 4, 4))  # partial M partial x
+    M_P_y_electrolyte_line_nodes = np.zeros((num_source_line_gauss_points, 4, 4))  # partial M partial y
+    M_P_z_electrolyte_line_nodes = np.zeros((num_source_line_gauss_points, 4, 4))  # partial M partial y
 
     (
         phi_nonzero_index_row_electrolyte_line_nodes,
@@ -3174,18 +3074,10 @@ if dimension == 3:
         shape=(num_source_line_gauss_points, num_nodes_electrolyte),
     )
 
-    M_electrode_line_nodes = np.array(
-        [np.zeros((4, 4)) for _ in range(num_source_line_gauss_points)]
-    )
-    M_P_x_electrode_line_nodes = np.array(
-        [np.zeros((4, 4)) for _ in range(num_source_line_gauss_points)]
-    )  # partial M partial x
-    M_P_y_electrode_line_nodes = np.array(
-        [np.zeros((4, 4)) for _ in range(num_source_line_gauss_points)]
-    )  # partial M partial y
-    M_P_z_electrode_line_nodes = np.array(
-        [np.zeros((4, 4)) for _ in range(num_source_line_gauss_points)]
-    )  # partial M partial y
+    M_electrode_line_nodes = np.zeros((num_source_line_gauss_points, 4, 4))
+    M_P_x_electrode_line_nodes = np.zeros((num_source_line_gauss_points, 4, 4))  # partial M partial x
+    M_P_y_electrode_line_nodes = np.zeros((num_source_line_gauss_points, 4, 4))  # partial M partial y
+    M_P_z_electrode_line_nodes = np.zeros((num_source_line_gauss_points, 4, 4))  # partial M partial y
 
     (
         phi_nonzero_index_row_electrode_line_nodes,
@@ -3257,18 +3149,10 @@ if dimension == 3:
         shape=(num_source_line_gauss_points, num_nodes_electrode),
     )
 
-    M_pore_line_nodes = np.array(
-        [np.zeros((4, 4)) for _ in range(num_source_line_gauss_points)]
-    )
-    M_P_x_pore_line_nodes = np.array(
-        [np.zeros((4, 4)) for _ in range(num_source_line_gauss_points)]
-    )  # partial M partial x
-    M_P_y_pore_line_nodes = np.array(
-        [np.zeros((4, 4)) for _ in range(num_source_line_gauss_points)]
-    )  # partial M partial y
-    M_P_z_pore_line_nodes = np.array(
-        [np.zeros((4, 4)) for _ in range(num_source_line_gauss_points)]
-    )  # partial M partial y
+    M_pore_line_nodes = np.zeros((num_source_line_gauss_points, 4, 4))
+    M_P_x_pore_line_nodes = np.zeros((num_source_line_gauss_points, 4, 4))  # partial M partial x
+    M_P_y_pore_line_nodes = np.zeros((num_source_line_gauss_points, 4, 4))  # partial M partial y
+    M_P_z_pore_line_nodes = np.zeros((num_source_line_gauss_points, 4, 4))  # partial M partial y
 
     (
         phi_nonzero_index_row_pore_line_nodes,
@@ -3340,16 +3224,10 @@ if dimension == 3:
         shape=(num_source_line_gauss_points, num_nodes_pore),
     )
 
-    M_fixed_nodes = np.array([np.zeros((4, 4)) for _ in range(num_fixed_gauss_points)])
-    M_P_x_fixed_nodes = np.array(
-        [np.zeros((4, 4)) for _ in range(num_fixed_gauss_points)]
-    )  # partial M partial x
-    M_P_y_fixed_nodes = np.array(
-        [np.zeros((4, 4)) for _ in range(num_fixed_gauss_points)]
-    )  # partial M partial y
-    M_P_z_fixed_nodes = np.array(
-        [np.zeros((4, 4)) for _ in range(num_fixed_gauss_points)]
-    )  # partial M partial y
+    M_fixed_nodes = np.zeros((num_fixed_gauss_points, 4, 4))
+    M_P_x_fixed_nodes = np.zeros((num_fixed_gauss_points, 4, 4))  # partial M partial x
+    M_P_y_fixed_nodes = np.zeros((num_fixed_gauss_points, 4, 4))  # partial M partial y
+    M_P_z_fixed_nodes = np.zeros((num_fixed_gauss_points, 4, 4))  # partial M partial y
 
     (
         phi_nonzero_index_row_fixed_nodes,
